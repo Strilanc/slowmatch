@@ -205,14 +205,14 @@ class CircleFlooder(Flooder[complex]):
                         in_out_touch_pairs=in_out_touch_pairs,
                         time=t)
 
-    def next_event(self, max_time: Optional[float] = None) -> Optional[MwpmEvent]:
+    def next_event(self, max_time: float = float('inf')) -> Optional[MwpmEvent]:
         best_event = None
         for event in self._iter_events():
             if best_event is None or event.time < best_event.time:
                 best_event = event
         if best_event is None:
             return None
-        if max_time is not None and best_event.time > max_time:
+        if best_event.time > max_time:
             self.time = max_time
             return None
         self.time = best_event.time

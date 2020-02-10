@@ -3,7 +3,7 @@ from typing import Optional
 from slowmatch.flooder import Flooder
 
 
-class CommandRecordingFlooder(Flooder):
+class RecordingFlooder(Flooder):
     def __init__(self, sub_flooder: Optional[Flooder] = None):
         self._next_id = 0
         self.sub_flooder = sub_flooder
@@ -43,6 +43,6 @@ class CommandRecordingFlooder(Flooder):
 
 
 def test_record():
-    a = CommandRecordingFlooder()
+    a = RecordingFlooder()
     a.create_region('test')
     assert a.recorded_commands == [('create_region', 'test', 0)]

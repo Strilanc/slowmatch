@@ -1,6 +1,6 @@
 from slowmatch.alternating_tree_test import alternating_tree_builder, alternating_tree_map
 from slowmatch.flooder import RegionHitRegionEvent, BlossomImplodeEvent
-from slowmatch.flooder_test import CommandRecordingFlooder
+from slowmatch.flooder_test import RecordingFlooder
 from slowmatch.mwpm import Mwpm, OuterNode, cycle_split
 
 
@@ -28,7 +28,7 @@ def test_cycle_split():
 
 def test_match_then_blossom_then_match():
     t = alternating_tree_builder()
-    fill = CommandRecordingFlooder()
+    fill = RecordingFlooder()
     state = Mwpm(flooder=fill)
     for i in range(4):
         fill.create_region(i)
@@ -89,7 +89,7 @@ def test_match_then_blossom_then_match():
 
 
 def test_blossom_implosion():
-    fill = CommandRecordingFlooder()
+    fill = RecordingFlooder()
     state = Mwpm(flooder=fill)
     n = 10
     for i in range(n + 3):

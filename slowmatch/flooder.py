@@ -60,7 +60,7 @@ class Flooder(Generic[TLocation], metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def next_event(self, max_time: Optional[float] = None) -> Optional['MwpmEvent']:
+    def next_event(self, max_time: float = float('inf')) -> Optional['MwpmEvent']:
         """Advances time until `max_time` or the next collision/implosion.
 
         Args:
@@ -96,6 +96,7 @@ class RegionHitRegionEvent:
     region2: int
 
     def __post_init__(self):
+        assert self.region1 != self.region2
         if self.region1 > self.region2:
             self.region1, self.region2 = self.region2, self.region1
 
