@@ -1,4 +1,6 @@
+import random
 from typing import List, Tuple, Any
+import numpy as np
 
 from slowmatch import Mwpm, Varying
 from slowmatch.flooder import RegionHitRegionEvent, BlossomImplodeEvent
@@ -143,3 +145,32 @@ def test_blossom_implosion():
         ('set_region_growth', 1, +1),
         ('set_region_growth', 2, -1),
     )
+
+
+def assert_completes_on_grid(*points: complex):
+    fill = RecordingFlooder(GraphFlooder(complex_grid_neighbors))
+    mwpm = Mwpm(flooder=fill)
+    for p in points:
+        mwpm.add_region(fill.create_region(p))
+
+    while True:
+        event = fill.next_event()
+        if event is None:
+            break
+        mwpm.process_event(event)
+
+
+def test_grid_progression():
+    # Note: order is important.
+    assert_completes_on_grid(
+        -1 - 1j,
+        0,
+        1 + 1j,
+        1,
+    )
+
+    rng = np.random.RandomState(123)
+    points = set()
+    while len(points) < 40:
+        points.add(rng.randint(0, 50) + 1j * rng.randint(0, 50))
+    assert_completes_on_grid(*points)

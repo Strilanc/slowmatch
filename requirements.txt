@@ -2,3 +2,4 @@ cirq==0.7.0
 pytest
 pygame
 networkx
+numpy

@@ -131,6 +131,13 @@ class GraphFlooder(Generic[TLocation], Flooder[TLocation]):
                 ))
 
         self._reschedule_events_for_region(blossom_region)
+
+        # Rescheduling the blossom region fixed location schedules, but not
+        # child region schedules. Fix them now.
+        for child in blossom_region.blossom_children:
+            for ev in list(child.schedule_map.values()):
+                ev.invalidate()
+
         return k
 
     def _schedule_tentative_event(self,
@@ -287,6 +294,7 @@ class GraphFlooder(Generic[TLocation], Flooder[TLocation]):
     def _do_implosion(self,
                       region: 'GraphFillRegion') -> Optional[MwpmEvent]:
         assert abs(region.radius(self.time)) < 1e-8
+        assert region.radius.slope < 0
 
         degenerate_collision = not region.blossom_children
 
