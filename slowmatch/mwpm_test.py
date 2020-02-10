@@ -1,264 +1,35 @@
-import cirq
-import pytest
-from slowmatch.fill_system import Event, RegionHitRegionEvent
-from slowmatch.fill_system_test import CommandRecordingFillSystem
-from slowmatch.mwpm import MinWeightMatchingState, OuterNode, InnerNode, cycle_split
-from typing import List, Optional, Iterable, Union, Dict
+from slowmatch.alternating_tree_test import alternating_tree_builder, alternating_tree_map
+from slowmatch.flooder import RegionHitRegionEvent, BlossomImplodeEvent
+from slowmatch.flooder_test import CommandRecordingFlooder
+from slowmatch.mwpm import Mwpm, OuterNode, cycle_split
 
 
-def alternating_tree_builder():
-    counter = 0
+def test_cycle_split():
+    def f(i, j):
+        return cycle_split(range(7), i, j)
 
-    def make_tree(*children: InnerNode,
-                  inner_id: Optional[int] = None,
-                  outer_id: Optional[int] = None,
-                  root: bool = False) -> Union[OuterNode, InnerNode]:
-        nonlocal counter
-        if inner_id is None:
-            inner_id = counter
-            counter += 1
-        if outer_id is None:
-            outer_id = counter
-            counter += 1
+    assert cycle_split(['a', 'b', 'c'], 0, 0) == (['a'], ['a', 'b', 'c', 'a'])
+    assert cycle_split(['a', 'b', 'c'], 0, 1) == (['a', 'b'], ['b', 'c', 'a'])
 
-        outer = OuterNode(outer_id)
-        if not root:
-            outer.parent = InnerNode(inner_id, parent=None, child=outer)
-        outer.children = list(children)
-        for child in children:
-            child.parent = outer
-        return outer if root else outer.parent
+    assert f(0, 0) == ([0], [0, 1, 2, 3, 4, 5, 6, 0])
+    assert f(1, 1) == ([1], [1, 2, 3, 4, 5, 6, 0, 1])
+    assert f(2, 2) == ([2], [2, 3, 4, 5, 6, 0, 1, 2])
 
-    return make_tree
+    assert f(0, 1) == ([0, 1], [1, 2, 3, 4, 5, 6, 0])
+    assert f(1, 2) == ([1, 2], [2, 3, 4, 5, 6, 0, 1])
+    assert f(2, 1) == ([2, 3, 4, 5, 6, 0, 1], [1, 2])
+
+    assert f(1, 3) == ([1, 2, 3], [3, 4, 5, 6, 0, 1])
+    assert f(1, 4) == ([1, 2, 3, 4], [4, 5, 6, 0, 1])
+
+    assert f(0, 6) == ([0, 1, 2, 3, 4, 5, 6], [6, 0])
+    assert f(6, 0) == ([6, 0], [0, 1, 2, 3, 4, 5, 6])
 
 
-def alternating_tree_map(tree: OuterNode, out: Optional[Dict[int, Union[OuterNode, InnerNode]]] = None) -> Dict[int, Union[OuterNode, InnerNode]]:
-    if out is None:
-        out = {}
-    out[tree.region_id] = tree
-    for child in tree.children:
-        out[child.region_id] = child
-        alternating_tree_map(child.child, out)
-    return out
-
-
-def test_tree_str():
+def test_match_then_blossom_then_match():
     t = alternating_tree_builder()
-    tree = t(
-        t(
-            t(),
-            t(),
-            t(),
-        ),
-        t(),
-        inner_id=200,
-        outer_id=201,
-    )
-    assert str(tree) == """
-200 ===> 201
-+---6 ===> 7
-|   +---0 ===> 1
-|   +---2 ===> 3
-|   +---4 ===> 5
-+---8 ===> 9
-""".strip()
-
-    assert str(tree.child) == """
-201
-+---6 ===> 7
-|   +---0 ===> 1
-|   +---2 ===> 3
-|   +---4 ===> 5
-+---8 ===> 9
-""".strip()
-
-    assert str(tree.child.children[0]) == """
-6 ===> 7
-+---0 ===> 1
-+---2 ===> 3
-+---4 ===> 5
-""".strip()
-
-
-def test_tree_equality():
-    eq = cirq.testing.EqualsTester()
-
-    t = alternating_tree_builder()
-    tree1 = t(
-        t(
-            t(),
-            t(),
-            t(),
-        ),
-        t(),
-    )
-
-    t = alternating_tree_builder()
-    tree2 = t(
-        t(
-            t(),
-            t(),
-            t(),
-        ),
-        t(),
-    )
-
-    t = alternating_tree_builder()
-    tree3 = t(
-        t(
-            t(),
-            t(inner_id=100),
-            t(),
-        ),
-        t(),
-    )
-
-    eq.add_equality_group(tree1, tree2)
-    eq.add_equality_group(tree1.child, tree2.child)
-    eq.add_equality_group(tree1.child.children[0], tree2.child.children[0])
-    eq.add_equality_group(tree1.child.children[1], tree2.child.children[1])
-    eq.add_equality_group(tree3)
-
-
-def test_most_recent_common_ancestor():
-    t = alternating_tree_builder()
-    tree = t(
-        t(
-            t(),
-            t(),
-            t(
-                t(),
-            )
-        ),
-        t(),
-        root=True
-    )
-    c0 = tree.children[0].child
-    c1 = tree.children[1].child
-    c00 = c0.children[0].child
-    c01 = c0.children[1].child
-    assert tree.most_recent_common_ancestor(tree) is tree
-    assert tree.most_recent_common_ancestor(tree.children[0].child) is tree
-    assert c0.most_recent_common_ancestor(c1) is tree
-    assert c00.most_recent_common_ancestor(c1) is tree
-    assert c00.most_recent_common_ancestor(tree) is tree
-    assert c00.most_recent_common_ancestor(c0) is c0
-    assert c00.most_recent_common_ancestor(c01) is c0
-    assert c01.most_recent_common_ancestor(c00) is c0
-    with pytest.raises(ValueError, match='No common ancestor'):
-        _ = c00.most_recent_common_ancestor(t(root=True))
-
-
-def test_become_root():
-    t = alternating_tree_builder()
-    tree = t(
-        t(
-            t(inner_id=10, outer_id=11),
-            t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=6, outer_id=7),
-                inner_id=12,
-                outer_id=13,
-            ),
-            inner_id=4,
-            outer_id=5,
-        ),
-        t(inner_id=2, outer_id=3),
-        outer_id=1,
-        root=True,
-    )
-    c = tree.children[0].child.children[2].child
-    c.become_root()
-    assert c == t(
-        t(inner_id=6, outer_id=7),
-        t(
-            t(inner_id=10, outer_id=11),
-            t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=2, outer_id=3),
-                inner_id=4,
-                outer_id=1,
-            ),
-            inner_id=12,
-            outer_id=5,
-        ),
-        outer_id=13,
-        root=True,
-    )
-
-
-def test_outer_ancestry():
-    t = alternating_tree_builder()
-    tree = t(
-        t(
-            t(inner_id=10, outer_id=11),
-            t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=6, outer_id=7),
-                inner_id=12,
-                outer_id=13,
-            ),
-            inner_id=4,
-            outer_id=5,
-        ),
-        t(inner_id=2, outer_id=3),
-        outer_id=1,
-        root=True,
-    )
-    assert tree.outer_ancestry() == [tree]
-    assert tree.outer_ancestry(stop_before=tree) == []
-    c0 = tree.children[0].child
-    assert c0.outer_ancestry() == [c0, tree]
-    assert c0.outer_ancestry(stop_before=tree) == [c0]
-    assert c0.outer_ancestry(stop_before=c0) == []
-    c00 = c0.children[0].child
-    assert c00.outer_ancestry() == [c00, c0, tree]
-    assert c00.outer_ancestry(stop_before=tree) == [c00, c0]
-    assert c00.outer_ancestry(stop_before=c0) == [c00]
-    assert c00.outer_ancestry(stop_before=c00) == []
-
-
-def test_prune_upward_path_stopping_before():
-    t = alternating_tree_builder()
-    tree = t(
-        t(
-            t(inner_id=10, outer_id=11),
-            t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=6, outer_id=7),
-                inner_id=12,
-                outer_id=13,
-            ),
-            inner_id=4,
-            outer_id=5,
-        ),
-        t(inner_id=2, outer_id=3),
-        outer_id=1,
-        root=True,
-    )
-
-    c0 = tree.children[0]
-    c02 = c0.child.children[2]
-    result = c02.child.prune_upward_path_stopping_before(tree)
-    assert tree == t(
-        t(inner_id=2, outer_id=3),
-        outer_id=1,
-        root=True,
-    )
-    assert result.orphans == [
-        c02.child.children[0],
-        c0.child.children[0],
-        c0.child.children[1],
-    ]
-    assert result.pruned_path_regions == [
-        13, 12, 5, 4,
-    ]
-
-
-def test_mwpm():
-    t = alternating_tree_builder()
-    fill = CommandRecordingFillSystem()
-    state = MinWeightMatchingState(fill_system=fill)
+    fill = CommandRecordingFlooder()
+    state = Mwpm(flooder=fill)
     for i in range(4):
         fill.create_region(i)
         state.add_region(i)
@@ -317,23 +88,96 @@ def test_mwpm():
     fill.recorded_commands.clear()
 
 
-def test_cycle_split():
-    def f(i, j):
-        return cycle_split(range(7), i, j)
+def test_blossom_implosion():
+    fill = CommandRecordingFlooder()
+    state = Mwpm(flooder=fill)
+    n = 10
+    for i in range(n + 3):
+        fill.create_region(i)
+        state.add_region(i)
+    fill.recorded_commands.clear()
 
-    assert cycle_split(['a', 'b', 'c'], 0, 0) == (['a'], ['a', 'b', 'c', 'a'])
-    assert cycle_split(['a', 'b', 'c'], 0, 1) == (['a', 'b'], ['b', 'c', 'a'])
+    # Pair up.
+    for i in range(0, n, 2):
+        state.process_event(
+            RegionHitRegionEvent(region1=i, region2=i + 1, time=0))
+    # Form an alternating path through the pairs.
+    for i in range(1, n, 2)[::-1]:
+        state.process_event(
+            RegionHitRegionEvent(region1=i, region2=i + 1, time=0))
+    # Close the path into a blossom.
+    state.process_event(
+        RegionHitRegionEvent(region1=0, region2=n, time=0))
+    blossom_id = n + 3
 
-    assert f(0, 0) == ([0], [0, 1, 2, 3, 4, 5, 6, 0])
-    assert f(1, 1) == ([1], [1, 2, 3, 4, 5, 6, 0, 1])
-    assert f(2, 2) == ([2], [2, 3, 4, 5, 6, 0, 1, 2])
+    # Make the blossom become an inner node.
+    state.process_event(
+        RegionHitRegionEvent(region1=n + 1, region2=blossom_id, time=0))
+    state.process_event(
+        RegionHitRegionEvent(region1=n + 2, region2=blossom_id, time=0))
 
-    assert f(0, 1) == ([0, 1], [1, 2, 3, 4, 5, 6, 0])
-    assert f(1, 2) == ([1, 2], [2, 3, 4, 5, 6, 0, 1])
-    assert f(2, 1) == ([2, 3, 4, 5, 6, 0, 1], [1, 2])
+    # Implode the blossom.
+    state.process_event(
+        BlossomImplodeEvent(time=0,
+                            blossom_region_id=blossom_id,
+                            in_out_touch_pairs=[
+                                (5, n + 1),
+                                (9, n + 2),
+                            ]))
 
-    assert f(1, 3) == ([1, 2, 3], [3, 4, 5, 6, 0, 1])
-    assert f(1, 4) == ([1, 2, 3, 4], [4, 5, 6, 0, 1])
+    assert fill.recorded_commands == [
+        # Initial pairing up.
+        ('set_region_growth', 0, 0),
+        ('set_region_growth', 1, 0),
+        ('set_region_growth', 2, 0),
+        ('set_region_growth', 3, 0),
+        ('set_region_growth', 4, 0),
+        ('set_region_growth', 5, 0),
+        ('set_region_growth', 6, 0),
+        ('set_region_growth', 7, 0),
+        ('set_region_growth', 8, 0),
+        ('set_region_growth', 9, 0),
+        # Formation of alternating path.
+        ('set_region_growth', 9, -1),
+        ('set_region_growth', 8, 1),
+        ('set_region_growth', 7, -1),
+        ('set_region_growth', 6, 1),
+        ('set_region_growth', 5, -1),
+        ('set_region_growth', 4, 1),
+        ('set_region_growth', 3, -1),
+        ('set_region_growth', 2, 1),
+        ('set_region_growth', 1, -1),
+        ('set_region_growth', 0, 1),
+        # Formation of the blossom.
+        ('create_combined_region', (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10), 13),
+        # Blossom turning into an inner node.
+        ('set_region_growth', 11, 0),
+        ('set_region_growth', 13, 0),
+        ('set_region_growth', 13, -1),
+        ('set_region_growth', 11, +1),
+        # Blossom imploding.
+        ('set_region_growth', 9, -1),
+        ('set_region_growth', 8, +1),
+        ('set_region_growth', 7, -1),
+        ('set_region_growth', 6, +1),
+        ('set_region_growth', 5, -1),
+    ]
 
-    assert f(0, 6) == ([0, 1, 2, 3, 4, 5, 6], [6, 0])
-    assert f(6, 0) == ([6, 0], [0, 1, 2, 3, 4, 5, 6])
+    t = alternating_tree_builder()
+    expected_tree = t(
+        root=True,
+        outer_id=n + 2,
+        child=t(
+            inner_id=9,
+            outer_id=8,
+            child=t(
+                inner_id=7,
+                outer_id=6,
+                child=t(
+                    inner_id=5,
+                    outer_id=n + 1,
+                )
+            )
+        ),
+    )
+    assert state.tree_id_map == {**alternating_tree_map(expected_tree)}

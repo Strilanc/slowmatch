@@ -1,174 +1,12 @@
-import dataclasses
-from typing import TypeVar, List, Tuple, Optional, Dict, Union
+from typing import TypeVar, List, Tuple, Optional, Dict, Union, Sequence
 
-from slowmatch.fill_system import FillSystem, Event, RegionHitRegionEvent, BlossomImplodeEvent
-
-TLocation = TypeVar('TLocation')
+from slowmatch.alternating_tree import InnerNode, OuterNode
+from slowmatch.flooder import Flooder, MwpmEvent, RegionHitRegionEvent, BlossomImplodeEvent
 
 
-@dataclasses.dataclass(eq=False)
-class InnerNode(object):
-    region_id: int
-    parent: Optional['OuterNode']
-    child: 'OuterNode'
-
-    def all_matches_in_tree(self, *, out: Optional[List[Tuple[int, int]]] = None) -> List[Tuple[int, int]]:
-        if out is None:
-            out = []
-        out.append((self.region_id, self.child.region_id))
-        for c in self.child.children:
-            c.all_matches_in_tree(out=out)
-        return out
-
-    def __str__(self):
-        return f'{self.region_id} ===> {self.child}'
-
-    def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self.child == other.child
-
-
-@dataclasses.dataclass
-class PruneResult:
-    orphans: List['InnerNode']  # Subtrees disconnected from the main tree by pruning the path.
-    pruned_path_regions: List[int]  # Inner-outer node pairs
-
-
-class OuterNode:
-    def __init__(self, region_id: int):
-        self.region_id = region_id
-        self.parent: Optional['InnerNode'] = None
-        self.children: List[InnerNode] = []
-
-    def _tree_eq_helper(self, other, *, backwards: InnerNode):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        if self.region_id != other.region_id:
-            return False
-        if (self.parent is None) != (other.parent is None):
-            return False
-        if self.parent is not backwards and self.parent is not None:
-            if self.parent.region_id != other.parent.region_id:
-                return False
-            if (self.parent.parent is None) != (other.parent.parent is None):
-                return False
-            if self.parent.parent is not None and not self.parent.parent._tree_eq_helper(other.parent.parent, backwards=self.parent):
-                return False
-        if len(self.children) != len(other.children):
-            return False
-        for child, other_child in zip(self.children, other.children):
-            if child is not backwards:
-                if child.region_id != other_child.region_id:
-                    return False
-                if not child.child._tree_eq_helper(other_child.child, backwards=child):
-                    return False
-        return True
-
-    def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self._tree_eq_helper(other, backwards=None)
-
-    def __ne__(self, other):
-        return not self == other
-
-    def all_region_ids_in_tree(self, *, out: Optional[List[int]] = None) -> List[int]:
-        if out is None:
-            out = []
-        out.append(self.region_id)
-        for c in self.children:
-            out.append(c.region_id)
-            c.child.all_region_ids_in_tree(out=out)
-        return out
-
-    def outer_ancestry(self, *, stop_before: Optional['OuterNode'] = None) -> List['OuterNode']:
-        if self is stop_before:
-            return []
-        result = [self]
-        while True:
-            parent = result[-1].parent
-            if parent is None or parent.parent is stop_before:
-                break
-            result.append(parent.parent)
-        return result
-
-    def become_root(self):
-        """Performs a tree rotation that makes the current node the root."""
-        if self.parent is None:
-            return
-        old_parent = self.parent
-        old_grandparent = old_parent.parent
-
-        self.children.append(old_parent)
-        old_parent.child = old_grandparent
-        old_parent.parent = self
-        old_grandparent.children.remove(old_parent)
-        old_grandparent.become_root()
-        self.parent = None
-        old_grandparent.parent = old_parent
-
-    def most_recent_common_ancestor(self, other: 'OuterNode') -> 'OuterNode':
-        seen = set(id(e) for e in self.outer_ancestry())
-        for ancestor in other.outer_ancestry():
-            if id(ancestor) in seen:
-                return ancestor
-        raise ValueError(f'No common ancestor between {self.region_id} and {other.region_id}.')
-
-    def make_child_inner_outer(self, *, inner_region_id: int, outer_region_id: int) -> Tuple['InnerNode', 'OuterNode']:
-        outer = OuterNode(region_id=outer_region_id)
-        inner = InnerNode(parent=self, child=outer, region_id=inner_region_id)
-        outer.parent = inner
-        self.children.append(inner)
-        return inner, outer
-
-    def prune_upward_path_stopping_before(self, prune_parent: Optional['OuterNode'] = None) -> PruneResult:
-        """Removes the path from `self` to just before `prune_parent` from the tree.
-
-        Args:
-            prune_parent: The node to stop just before. Must be an ancestor of `self`. Will not
-                be removed from the tree.
-
-        Returns:
-            Children of nodes along the path, that are not themselves along the path, are reported
-            in the `orphans` attribute of the result. Region ids of nodes removed by the pruning
-            process are returned in the `pruned_path_region_ids` attribute of the result. The child
-            of `prune_parent` that led to `self` is reported in the `top_pruned_node` attribute of
-            the result.
-        """
-        orphans = []
-        removed_regions = []
-        for outer in self.outer_ancestry(stop_before=prune_parent):
-            for child in outer.children:
-                orphans.append(child)
-                child.parent = None
-            removed_regions.append(outer.region_id)
-            inner = outer.parent
-            if inner is not None:
-                inner.parent.children = [
-                    child for child in inner.parent.children if child is not inner
-                ]
-                inner.parent = None
-                removed_regions.append(inner.region_id)
-        return PruneResult(
-            orphans=orphans,
-            pruned_path_regions=removed_regions,
-        )
-
-    def __str__(self):
-        indent1 = '+---'
-        indent2 = '\n|   '
-        childParagraphs = [indent1 + indent2.join(str(c).rstrip().split('\n'))
-                           for c in self.children]
-        result = str(self.region_id)
-        if childParagraphs:
-            result += '\n' + '\n'.join(childParagraphs).rstrip()
-        return result
-
-
-class MinWeightMatchingState:
-    def __init__(self, fill_system: FillSystem):
-        self.fill_system: FillSystem = fill_system
+class Mwpm:
+    def __init__(self, flooder: Flooder):
+        self.fill_system: Flooder = flooder
         self.tree_id_map: Dict[int, Union[InnerNode, OuterNode]] = {}
         self.match_map: Dict[int, int] = {}
         self.blossom_map: Dict[int, List[int]] = {}
@@ -183,13 +21,21 @@ class MinWeightMatchingState:
         self.process_event(event)
         return True
 
-    def process_event(self, event: Event):
+    def _region_tree_root(self, region_id: int) -> OuterNode:
+        return self.tree_id_map[region_id].outer_ancestry()[-1]
+
+    def _in_same_tree(self, region_id_1: int, region_id_2: int) -> bool:
+        a = self._region_tree_root(region_id_1)
+        b = self._region_tree_root(region_id_2)
+        return a == b
+
+    def process_event(self, event: MwpmEvent):
         if isinstance(event, BlossomImplodeEvent):
             self.handle_blossom_imploding(event)
         elif isinstance(event, RegionHitRegionEvent):
             if event.region1 in self.match_map or event.region2 in self.match_map:
                 self.handle_tree_hitting_match(event)
-            elif self.tree_id_map[event.region1].outer_ancestry()[-1] == self.tree_id_map[event.region2].outer_ancestry()[-1]:
+            elif self._in_same_tree(event.region1, event.region2):
                 self.handle_tree_hitting_self(event)
             else:
                 self.handle_tree_hitting_other_tree(event)
@@ -197,17 +43,35 @@ class MinWeightMatchingState:
             raise NotImplementedError(f'Unrecognized event type "{type(event)}": {event!r}')
 
     def handle_blossom_imploding(self, event: BlossomImplodeEvent):
-        blossom = self.tree_id_map[event.blossom_region]
-        blossom_nodes = self.blossom_map[event.blossom_region]
-        ancestor: OuterNode = self.tree_id_map[event.external_touching_region_1]
-        descendent: OuterNode = self.tree_id_map[event.external_touching_region_2]
-        i = blossom_nodes.index(event.internal_touching_region_1)
-        j = blossom_nodes.index(event.internal_touching_region_2)
-        evens, odds = cycle_split(blossom_nodes, i, j)
+        blossom = self.tree_id_map[event.blossom_region_id]
+        assert isinstance(blossom, InnerNode)
+        del self.tree_id_map[blossom.region_id]
+
+        # Find the ids of the inner regions touching the outer parent and child.
+        out_child_id = blossom.child.region_id
+        out_parent_id = blossom.parent.region_id
+        in_child_id = -1
+        in_parent_id = -1
+        for in_id, out_id in event.in_out_touch_pairs:
+            if out_id == out_child_id:
+                in_child_id = in_id
+            if out_id == out_parent_id:
+                in_parent_id = in_id
+        assert in_child_id != -1
+        assert in_parent_id != -1
+
+        # Find even and odd length paths from parent to child.
+        inner_region_ids = self.blossom_map[event.blossom_region_id]
+        evens, odds = cycle_split(
+            inner_region_ids,
+            inner_region_ids.index(in_parent_id),
+            inner_region_ids.index(in_child_id),
+        )
         odds = odds[::-1]
         if len(odds) % 2 == 0:
             odds, evens = evens, odds
 
+        # The even length path becomes matches.
         matches = evens[1:-1]
         for k in range(0, len(matches), 2):
             a = matches[k]
@@ -215,17 +79,24 @@ class MinWeightMatchingState:
             self.match_map[a] = b
             self.match_map[b] = a
 
+        # The odd length path is inserted into the alternating tree.
+        ancestor: OuterNode = self.tree_id_map[out_parent_id]
+        descendent: OuterNode = self.tree_id_map[out_child_id]
         ancestor.children = [e for e in ancestor.children if e is not blossom]
-        outer = ancestor
-        for k in range(len(odds), 2):
-            inner, outer = ancestor.make_child_inner_outer(inner_region_id=odds[k],
-                                                           outer_region_id=odds[k + 1])
-            self.tree_id_map[inner.region_id] = inner
-            self.tree_id_map[outer.region_id] = outer
-        inner = InnerNode(region_id=odds[-1], parent=outer, child=descendent)
-        self.tree_id_map[inner.region_id] = inner
-        outer.children.append(inner)
-        descendent.parent = inner
+        cur_outer = ancestor
+        for k in range(0, len(odds) - 1, 2):
+            cur_inner, cur_outer = cur_outer.make_child_inner_outer(
+                inner_region_id=odds[k],
+                outer_region_id=odds[k + 1])
+            self.tree_id_map[cur_inner.region_id] = cur_inner
+            self.tree_id_map[cur_outer.region_id] = cur_outer
+            self.fill_system.set_region_growth(cur_inner.region_id, new_growth=-1)
+            self.fill_system.set_region_growth(cur_outer.region_id, new_growth=+1)
+        cur_inner = InnerNode(region_id=odds[-1], parent=cur_outer, child=descendent)
+        self.fill_system.set_region_growth(cur_inner.region_id, new_growth=-1)
+        self.tree_id_map[cur_inner.region_id] = cur_inner
+        cur_outer.children.append(cur_inner)
+        descendent.parent = cur_inner
 
     def handle_tree_hitting_match(self, event: RegionHitRegionEvent):
         """An outer node from an alternating tree hit a matched node from a match.
@@ -328,7 +199,7 @@ class MinWeightMatchingState:
 T = TypeVar('T')
 
 
-def cycle_split(items: List[T], i: int, j: int) -> Tuple[List[T], List[T]]:
+def cycle_split(items: Sequence[T], i: int, j: int) -> Tuple[List[T], List[T]]:
     """Splits a cyclical list into two parts terminating at the given boundaries.
 
     Each part includes both boundaries.
