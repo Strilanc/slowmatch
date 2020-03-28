@@ -43,10 +43,7 @@ def test_match_then_blossom_then_match():
         2: OuterNode(region_id=2),
         3: OuterNode(region_id=3),
     }
-    assert fill.recorded_commands == [
-        ('set_region_growth', 0, 0),
-        ('set_region_growth', 1, 0)
-    ]
+    assert fill.recorded_commands == [('set_region_growth', 0, 0), ('set_region_growth', 1, 0)]
     fill.recorded_commands.clear()
 
     # 2 meets 1, extending into a tree.
@@ -57,10 +54,7 @@ def test_match_then_blossom_then_match():
         **alternating_tree_map(t(t(inner_id=1, outer_id=0), outer_id=2, root=True)),
         3: OuterNode(region_id=3),
     }
-    assert fill.recorded_commands == [
-        ('set_region_growth', 1, -1),
-        ('set_region_growth', 0, +1)
-    ]
+    assert fill.recorded_commands == [('set_region_growth', 1, -1), ('set_region_growth', 0, +1)]
     fill.recorded_commands.clear()
 
     # 2 meets 0, forming a blossom.
@@ -72,7 +66,7 @@ def test_match_then_blossom_then_match():
         3: OuterNode(region_id=3),
     }
     assert fill.recorded_commands == [
-        ('create_combined_region', (0, 1, 2), 4),
+        ('create_blossom', (0, 1, 2), 4),
     ]
     fill.recorded_commands.clear()
 
@@ -88,6 +82,38 @@ def test_match_then_blossom_then_match():
     fill.recorded_commands.clear()
 
 
+def test_blossom_not_including_root():
+    t = alternating_tree_builder()
+    fill = RecordingFlooder()
+    state = Mwpm(flooder=fill)
+    for i in range(10):
+        fill.create_region(i)
+        state.add_region(i)
+
+    # Root at 2, child at 0 then 1.
+    state.process_event(RegionHitRegionEvent(region1=0, region2=1, time=1))
+    state.process_event(RegionHitRegionEvent(region1=0, region2=2, time=1))
+
+    # 1 has child tree.
+    state.process_event(RegionHitRegionEvent(region1=3, region2=4, time=1))
+    state.process_event(RegionHitRegionEvent(region1=5, region2=6, time=1))
+    state.process_event(RegionHitRegionEvent(region1=1, region2=3, time=1))
+    state.process_event(RegionHitRegionEvent(region1=1, region2=5, time=1))
+
+    # Blossom forms within child tree.
+    fill.recorded_commands.clear()
+    state.process_event(RegionHitRegionEvent(region1=4, region2=6, time=1))
+    assert fill.recorded_commands == [('create_blossom', (4, 3, 1, 5, 6), 10)]
+    t = alternating_tree_builder()
+    expected_tree = t(root=True, outer_id=2, child=t(inner_id=0, outer_id=10,),)
+    assert state.tree_id_map == {
+        **alternating_tree_map(expected_tree),
+        7: OuterNode(region_id=7),
+        8: OuterNode(region_id=8),
+        9: OuterNode(region_id=9),
+    }
+
+
 def test_blossom_implosion():
     fill = RecordingFlooder()
     state = Mwpm(flooder=fill)
@@ -99,31 +125,24 @@ def test_blossom_implosion():
 
     # Pair up.
     for i in range(0, n, 2):
-        state.process_event(
-            RegionHitRegionEvent(region1=i, region2=i + 1, time=0))
+        state.process_event(RegionHitRegionEvent(region1=i, region2=i + 1, time=0))
     # Form an alternating path through the pairs.
     for i in range(1, n, 2)[::-1]:
-        state.process_event(
-            RegionHitRegionEvent(region1=i, region2=i + 1, time=0))
+        state.process_event(RegionHitRegionEvent(region1=i, region2=i + 1, time=0))
     # Close the path into a blossom.
-    state.process_event(
-        RegionHitRegionEvent(region1=0, region2=n, time=0))
+    state.process_event(RegionHitRegionEvent(region1=0, region2=n, time=0))
     blossom_id = n + 3
 
     # Make the blossom become an inner node.
-    state.process_event(
-        RegionHitRegionEvent(region1=n + 1, region2=blossom_id, time=0))
-    state.process_event(
-        RegionHitRegionEvent(region1=n + 2, region2=blossom_id, time=0))
+    state.process_event(RegionHitRegionEvent(region1=n + 1, region2=blossom_id, time=0))
+    state.process_event(RegionHitRegionEvent(region1=n + 2, region2=blossom_id, time=0))
 
     # Implode the blossom.
     state.process_event(
-        BlossomImplodeEvent(time=0,
-                            blossom_region_id=blossom_id,
-                            in_out_touch_pairs=[
-                                (5, n + 1),
-                                (9, n + 2),
-                            ]))
+        BlossomImplodeEvent(
+            time=0, blossom_region_id=blossom_id, in_out_touch_pairs=[(5, n + 1), (9, n + 2),]
+        )
+    )
 
     assert fill.recorded_commands == [
         # Initial pairing up.
@@ -149,7 +168,7 @@ def test_blossom_implosion():
         ('set_region_growth', 1, -1),
         ('set_region_growth', 0, 1),
         # Formation of the blossom.
-        ('create_combined_region', (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10), 13),
+        ('create_blossom', (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10), 13),
         # Blossom turning into an inner node.
         ('set_region_growth', 11, 0),
         ('set_region_growth', 13, 0),
@@ -170,14 +189,7 @@ def test_blossom_implosion():
         child=t(
             inner_id=9,
             outer_id=8,
-            child=t(
-                inner_id=7,
-                outer_id=6,
-                child=t(
-                    inner_id=5,
-                    outer_id=n + 1,
-                )
-            )
+            child=t(inner_id=7, outer_id=6, child=t(inner_id=5, outer_id=n + 1,)),
         ),
     )
     assert state.tree_id_map == {**alternating_tree_map(expected_tree)}

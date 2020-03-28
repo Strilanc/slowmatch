@@ -1,25 +1,27 @@
-from typing import TypeVar, List, Tuple, Optional, Dict, Union, Sequence
+from typing import TypeVar, List, Tuple, Dict, Union, Sequence, Any, Optional
 
 from slowmatch.alternating_tree import InnerNode, OuterNode
-from slowmatch.flooder import Flooder, MwpmEvent, RegionHitRegionEvent, BlossomImplodeEvent
+from slowmatch.flooder import (
+    Flooder,
+    MwpmEvent,
+    RegionHitRegionEvent,
+    BlossomImplodeEvent,
+    RegionHitBoundaryEvent,
+)
 
 
 class Mwpm:
+    """The internal state of an embedded minimum weight perfect matching algorithm."""
+
     def __init__(self, flooder: Flooder):
         self.fill_system: Flooder = flooder
         self.tree_id_map: Dict[int, Union[InnerNode, OuterNode]] = {}
         self.match_map: Dict[int, int] = {}
+        self.boundary_match_map: Dict[int, Any] = {}
         self.blossom_map: Dict[int, List[int]] = {}
 
     def add_region(self, region_id: int):
         self.tree_id_map[region_id] = OuterNode(region_id=region_id)
-
-    def advance(self, max_time: Optional[float] = None) -> bool:
-        event = self.fill_system.next_event(max_time=max_time)
-        if event is None:
-            return False
-        self.process_event(event)
-        return True
 
     def _region_tree_root(self, region_id: int) -> OuterNode:
         return self.tree_id_map[region_id].outer_ancestry()[-1]
@@ -35,10 +37,16 @@ class Mwpm:
         elif isinstance(event, RegionHitRegionEvent):
             if event.region1 in self.match_map or event.region2 in self.match_map:
                 self.handle_tree_hitting_match(event)
+            elif (
+                event.region1 in self.boundary_match_map or event.region2 in self.boundary_match_map
+            ):
+                self.handle_tree_hitting_boundary_or_boundary_match(event)
             elif self._in_same_tree(event.region1, event.region2):
                 self.handle_tree_hitting_self(event)
             else:
                 self.handle_tree_hitting_other_tree(event)
+        elif isinstance(event, RegionHitBoundaryEvent):
+            self.handle_tree_hitting_boundary_or_boundary_match(event)
         else:
             raise NotImplementedError(f'Unrecognized event type "{type(event)}": {event!r}')
 
@@ -86,8 +94,8 @@ class Mwpm:
         cur_outer = ancestor
         for k in range(0, len(odds) - 1, 2):
             cur_inner, cur_outer = cur_outer.make_child_inner_outer(
-                inner_region_id=odds[k],
-                outer_region_id=odds[k + 1])
+                inner_region_id=odds[k], outer_region_id=odds[k + 1]
+            )
             self.tree_id_map[cur_inner.region_id] = cur_inner
             self.tree_id_map[cur_outer.region_id] = cur_outer
             self.fill_system.set_region_growth(cur_inner.region_id, new_growth=-1)
@@ -118,10 +126,48 @@ class Mwpm:
         self.fill_system.set_region_growth(match, new_growth=-1)
         self.fill_system.set_region_growth(other_match, new_growth=+1)
         inner, outer = node.make_child_inner_outer(
-            outer_region_id=other_match,
-            inner_region_id=match)
+            outer_region_id=other_match, inner_region_id=match
+        )
         self.tree_id_map[match] = inner
         self.tree_id_map[other_match] = outer
+
+    def handle_tree_hitting_boundary_or_boundary_match(
+        self, event: Union[RegionHitBoundaryEvent, RegionHitRegionEvent]
+    ):
+        """An outer node from an alternating tree hit a boundary or a node matched to a boundary.
+
+        This shatters the node's tree, and matches the incoming node to the point of contact.
+
+        Args:
+            event: Event data including the region that is colliding.
+        """
+        if isinstance(event, RegionHitBoundaryEvent):
+            # Match to boundary.
+            node: OuterNode = self.tree_id_map[event.region]
+            self.boundary_match_map[event.region] = event.boundary
+        else:
+            # Match to boundary associate.
+            incoming = event.region1
+            squished = event.region2
+            if incoming in self.boundary_match_map:
+                incoming, squished = squished, incoming
+            assert squished in self.boundary_match_map
+            node: OuterNode = self.tree_id_map[incoming]
+            del self.boundary_match_map[squished]
+            self.match_map[incoming] = squished
+            self.match_map[squished] = incoming
+
+        # Shatter the alternating tree into matches.
+        self.fill_system.set_region_growth(node.region_id, new_growth=0)
+        node.become_root()
+        for k in node.all_region_ids_in_tree():
+            del self.tree_id_map[k]
+        for child in node.children:
+            for a, b in child.all_matches_in_tree():
+                self.match_map[a] = b
+                self.match_map[b] = a
+                self.fill_system.set_region_growth(a, new_growth=0)
+                self.fill_system.set_region_growth(b, new_growth=0)
 
     def handle_tree_hitting_self(self, event: RegionHitRegionEvent):
         """Two outer nodes from an alternating tree have hit each other.
@@ -217,6 +263,6 @@ def cycle_split(items: Sequence[T], i: int, j: int) -> Tuple[List[T], List[T]]:
     i %= n
     j %= n
     items = list(items) * 2
-    result1 = items[i:j + 1 + (n if j < i else 0)]
-    result2 = items[j:i + 1 + (n if i <= j else 0)]
+    result1 = items[i : j + 1 + (n if j < i else 0)]
+    result2 = items[j : i + 1 + (n if i <= j else 0)]
     return result1, result2

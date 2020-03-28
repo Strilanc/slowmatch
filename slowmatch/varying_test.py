@@ -1,7 +1,7 @@
 import cirq
 import pytest
 
-from slowmatch import Varying
+from slowmatch.varying import Varying
 
 
 def test_init():
@@ -35,13 +35,10 @@ def test_equality():
         Varying(Varying(base_time=0, slope=1, base=0)),
     )
     eq.add_equality_group(
-        Varying(base_time=0, slope=-1, base=0),
-        Varying(base_time=1, slope=-1, base=-1),
-        -Varying.T,
+        Varying(base_time=0, slope=-1, base=0), Varying(base_time=1, slope=-1, base=-1), -Varying.T,
     )
     eq.add_equality_group(
-        Varying(base_time=0, slope=1, base=1),
-        Varying(base_time=1, slope=1, base=2),
+        Varying(base_time=0, slope=1, base=1), Varying(base_time=1, slope=1, base=2),
     )
     eq.add_equality_group(
         Varying(base_time=0, slope=0, base=50),
@@ -51,9 +48,7 @@ def test_equality():
         50.0 + 0j,
     )
     eq.add_equality_group(
-        Varying(base_time=0, slope=0, base=60),
-        Varying(base_time=10000, slope=0, base=60),
-        60,
+        Varying(base_time=0, slope=0, base=60), Varying(base_time=10000, slope=0, base=60), 60,
     )
 
 
@@ -62,6 +57,11 @@ def test_approximate_equality():
     assert not cirq.approx_eq(Varying(5), Varying(5.01), atol=0.001)
     assert cirq.approx_eq(Varying(5, slope=4), Varying(5, slope=4.01), atol=0.1)
     assert not cirq.approx_eq(Varying(5, slope=4), Varying(5, slope=4.01), atol=0.001)
+    assert not cirq.approx_eq(Varying.T, 'test', atol=0.1)
+    assert cirq.approx_eq(Varying(5), 5.001, atol=0.01)
+    assert cirq.approx_eq(5.001, Varying(5), atol=0.01)
+    assert not cirq.approx_eq(Varying(5), 5.001, atol=0.0001)
+    assert not cirq.approx_eq(5.001, Varying(5), atol=0.0001)
 
 
 def test_arithmetic():
@@ -102,6 +102,26 @@ def test_arithmetic():
     assert double1(20) == double2(20) == a(20) * 2
     assert double1(30) == double2(30) == a(30) * 2
 
+    half = a / 2
+    assert half._base_time == a._base_time
+    assert half(20) == a(20) / 2
+    assert half(30) == a(30) / 2
+
+    with pytest.raises(TypeError):
+        _ = Varying.T + 'test'
+    with pytest.raises(TypeError):
+        _ = 'test' + Varying.T
+    with pytest.raises(TypeError):
+        _ = 'test' - Varying.T
+    with pytest.raises(TypeError):
+        _ = Varying.T - 'test'
+    with pytest.raises(TypeError):
+        _ = Varying.T * 'test'
+    with pytest.raises(TypeError):
+        _ = 'test' * Varying.T
+    with pytest.raises(TypeError):
+        _ = Varying.T / 'test'
+
 
 def test_scalar():
     with pytest.raises(TypeError):
@@ -128,8 +148,8 @@ def test_then_slope_at():
 
 def test_repr():
     cirq.testing.assert_equivalent_repr(
-        Varying(base_time=2, slope=3, base=5),
-        setup_code='from slowmatch import Varying')
+        Varying(base_time=2, slope=3, base=5), global_vals={'Varying': Varying}
+    )
 
 
 def test_str():
@@ -139,7 +159,7 @@ def test_str():
 def test_zero_intercept():
     assert Varying.T.zero_intercept() == 0
     assert (Varying.T + 5).zero_intercept() == -5
-    assert (-Varying.T*2 + 5).zero_intercept() == 2.5
-    assert (-Varying.T*0 + 5).zero_intercept() is None
+    assert (-Varying.T * 2 + 5).zero_intercept() == 2.5
+    assert (-Varying.T * 0 + 5).zero_intercept() is None
     assert Varying(base_time=5, base=3, slope=2).zero_intercept() == 3.5
-    assert (Varying.T*0).zero_intercept() is None
+    assert (Varying.T * 0).zero_intercept() is None

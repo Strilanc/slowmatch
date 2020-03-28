@@ -8,7 +8,9 @@ class InnerNode(object):
     parent: Optional['OuterNode']
     child: 'OuterNode'
 
-    def all_matches_in_tree(self, *, out: Optional[List[Tuple[int, int]]] = None) -> List[Tuple[int, int]]:
+    def all_matches_in_tree(
+        self, *, out: Optional[List[Tuple[int, int]]] = None
+    ) -> List[Tuple[int, int]]:
         if out is None:
             out = []
         out.append((self.region_id, self.child.region_id))
@@ -49,7 +51,9 @@ class OuterNode:
                 return False
             if (self.parent.parent is None) != (other.parent.parent is None):
                 return False
-            if self.parent.parent is not None and not self.parent.parent._tree_eq_helper(other.parent.parent, backwards=self.parent):
+            if self.parent.parent is not None and not self.parent.parent._tree_eq_helper(
+                other.parent.parent, backwards=self.parent
+            ):
                 return False
         if len(self.children) != len(other.children):
             return False
@@ -111,14 +115,18 @@ class OuterNode:
                 return ancestor
         raise ValueError(f'No common ancestor between {self.region_id} and {other.region_id}.')
 
-    def make_child_inner_outer(self, *, inner_region_id: int, outer_region_id: int) -> Tuple['InnerNode', 'OuterNode']:
+    def make_child_inner_outer(
+        self, *, inner_region_id: int, outer_region_id: int
+    ) -> Tuple['InnerNode', 'OuterNode']:
         outer = OuterNode(region_id=outer_region_id)
         inner = InnerNode(parent=self, child=outer, region_id=inner_region_id)
         outer.parent = inner
         self.children.append(inner)
         return inner, outer
 
-    def prune_upward_path_stopping_before(self, prune_parent: Optional['OuterNode'] = None) -> PruneResult:
+    def prune_upward_path_stopping_before(
+        self, prune_parent: Optional['OuterNode'] = None
+    ) -> PruneResult:
         """Removes the path from `self` to just before `prune_parent` from the tree.
 
         Args:
@@ -146,16 +154,14 @@ class OuterNode:
                 ]
                 inner.parent = None
                 removed_regions.append(inner.region_id)
-        return PruneResult(
-            orphans=orphans,
-            pruned_path_regions=removed_regions,
-        )
+        return PruneResult(orphans=orphans, pruned_path_regions=removed_regions,)
 
     def __str__(self):
         indent1 = '+---'
         indent2 = '\n|   '
-        child_paragraphs = [indent1 + indent2.join(str(c).rstrip().split('\n'))
-                           for c in self.children]
+        child_paragraphs = [
+            indent1 + indent2.join(str(c).rstrip().split('\n')) for c in self.children
+        ]
         result = str(self.region_id)
         if child_paragraphs:
             result += '\n' + '\n'.join(child_paragraphs).rstrip()

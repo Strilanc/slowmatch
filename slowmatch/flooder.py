@@ -1,6 +1,6 @@
 import abc
 import dataclasses
-from typing import TypeVar, List, Generic, Optional, Tuple, Union, Iterable
+from typing import TypeVar, List, Generic, Optional, Tuple, Union, Iterable, Any
 
 TLocation = TypeVar('TLocation')
 
@@ -21,6 +21,7 @@ class Flooder(Generic[TLocation], metaclass=abc.ABCMeta):
         A blossom region implodes, and is removed, when its radius hits 0.
         Calling `next_event` advances time.
     """
+
     @abc.abstractmethod
     def create_region(self, location: TLocation) -> int:
         """Creates a new zero-radius region starting from the given location.
@@ -101,4 +102,11 @@ class RegionHitRegionEvent:
             self.region1, self.region2 = self.region2, self.region1
 
 
-MwpmEvent = Union[BlossomImplodeEvent, RegionHitRegionEvent]
+@dataclasses.dataclass
+class RegionHitBoundaryEvent:
+    time: float
+    region: int
+    boundary: Any
+
+
+MwpmEvent = Union[BlossomImplodeEvent, RegionHitRegionEvent, RegionHitBoundaryEvent]

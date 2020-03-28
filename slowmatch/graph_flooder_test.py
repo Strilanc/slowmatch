@@ -1,27 +1,47 @@
-import random
-from typing import List, Tuple, Any
-import numpy as np
+from typing import List, Tuple, Any, Callable
 
-from slowmatch import Mwpm, Varying
+import cirq
+import numpy as np
+import pytest
+
 from slowmatch.flooder import RegionHitRegionEvent, BlossomImplodeEvent
 from slowmatch.flooder_test import RecordingFlooder
-from slowmatch.graph_flooder import GraphFlooder, GraphFillRegion
+from slowmatch.graph_flooder import GraphFlooder, GraphFillRegion, TentativeEvent
+from slowmatch.mwpm import Mwpm
+from slowmatch.varying import Varying
 
 
-def line_neighbors(pos: complex) -> List[Tuple[float, complex]]:
+def line_neighbors(pos: complex) -> List[Tuple[int, complex]]:
     return [
         (1, pos - 1),
         (1, pos + 1),
     ]
 
 
-def complex_grid_neighbors(pos: complex) -> List[Tuple[float, complex]]:
+def complex_grid_neighbors(pos: complex) -> List[Tuple[int, complex]]:
     return [
         (1, pos - 1j),
         (1, pos + 1j),
         (1, pos - 1),
         (1, pos + 1),
     ]
+
+
+def complex_skew_neighbors(pos: complex) -> List[Tuple[int, complex]]:
+    return [
+        (141, pos - 1j - 1),
+        (141, pos + 1j + 1),
+        (100, pos - 1),
+        (100, pos + 1),
+    ]
+
+
+def test_tentative_event():
+    a = TentativeEvent(kind='test', time=0, event_id=2, involved_object=[])
+    b = TentativeEvent(kind='test', time=1, event_id=2, involved_object=[])
+    with pytest.raises(TypeError):
+        _ = a < 5
+    assert a < b
 
 
 def test_normal_progression():
@@ -61,17 +81,22 @@ def test_normal_progression():
     # Alternating tree turns into a blossom.
     assert_process_event(
         ('next_event', RegionHitRegionEvent(region1=2, region2=4, time=98)),
-        ('create_combined_region', (2, 3, 4), 6),
+        ('create_blossom', (2, 3, 4), 6),
     )
     assert fill.sub_flooder._region_data_map == {
         0: GraphFillRegion(id=0, source=100, radius=0.5),
         1: GraphFillRegion(id=1, source=101, radius=0.5),
         5: GraphFillRegion(id=5, source=1000, radius=Varying.T),
-        6: GraphFillRegion(id=6, source=None, radius=Varying(base_time=98, slope=1), blossom_children=[
-            GraphFillRegion(id=2, source=200, radius=2),
-            GraphFillRegion(id=3, source=202, radius=0),
-            GraphFillRegion(id=4, source=300, radius=98),
-        ]),
+        6: GraphFillRegion(
+            id=6,
+            source=None,
+            radius=Varying(base_time=98, slope=1),
+            blossom_children=[
+                GraphFillRegion(id=2, source=200, radius=2),
+                GraphFillRegion(id=3, source=202, radius=0),
+                GraphFillRegion(id=4, source=300, radius=98),
+            ],
+        ),
     }
     assert_process_event(
         ('next_event', RegionHitRegionEvent(region1=1, region2=6, time=194.5)),
@@ -80,7 +105,7 @@ def test_normal_progression():
     )
     assert_process_event(
         ('next_event', RegionHitRegionEvent(region1=0, region2=6, time=195)),
-        ('create_combined_region', (0, 1, 6), 7),
+        ('create_blossom', (0, 1, 6), 7),
     )
     assert_process_event(
         ('next_event', RegionHitRegionEvent(region1=5, region2=7, time=350)),
@@ -119,7 +144,7 @@ def test_blossom_implosion():
     )
     assert_process_event(
         ('next_event', RegionHitRegionEvent(region1=0, region2=2, time=2)),
-        ('create_combined_region', (0, 1, 2), 5),
+        ('create_blossom', (0, 1, 2), 5),
     )
     # Blossom becomes an inner node.
     assert_process_event(
@@ -135,20 +160,18 @@ def test_blossom_implosion():
 
     # Blossom implodes.
     assert_process_event(
-        ('next_event', BlossomImplodeEvent(blossom_region_id=5,
-                                           time=9,
-                                           in_out_touch_pairs=[
-                                               (0, 3),
-                                               (2, 4),
-                                           ])),
+        (
+            'next_event',
+            BlossomImplodeEvent(blossom_region_id=5, time=9, in_out_touch_pairs=[(0, 3), (2, 4),]),
+        ),
         ('set_region_growth', 0, -1),
         ('set_region_growth', 1, +1),
         ('set_region_growth', 2, -1),
     )
 
 
-def assert_completes_on_grid(*points: complex):
-    fill = RecordingFlooder(GraphFlooder(complex_grid_neighbors))
+def assert_completes(*points: complex, neighbors: Callable):
+    fill = RecordingFlooder(GraphFlooder(neighbors))
     mwpm = Mwpm(flooder=fill)
     for p in points:
         mwpm.add_region(fill.create_region(p))
@@ -162,15 +185,32 @@ def assert_completes_on_grid(*points: complex):
 
 def test_grid_progression():
     # Note: order is important.
-    assert_completes_on_grid(
-        -1 - 1j,
-        0,
-        1 + 1j,
-        1,
+    assert_completes(-1 - 1j, 0, 1 + 1j, 1, neighbors=complex_grid_neighbors)
+
+    assert_completes(
+        (75 + 10j),
+        (7 + 10j),
+        (10 + 13j),
+        (13 + 10j),
+        (22 + 25j),
+        (31 + 10j),
+        neighbors=complex_skew_neighbors,
     )
 
     rng = np.random.RandomState(123)
     points = set()
     while len(points) < 40:
         points.add(rng.randint(0, 50) + 1j * rng.randint(0, 50))
-    assert_completes_on_grid(*points)
+    assert_completes(*points, neighbors=complex_skew_neighbors)
+
+
+def test_repr():
+    v = GraphFillRegion(
+        id=2,
+        source='test',
+        radius=Varying.T,
+        blossom_children=[GraphFillRegion(id=2, source='also_test'),],
+    )
+    cirq.testing.assert_equivalent_repr(
+        v, global_vals={'GraphFillRegion': GraphFillRegion, 'Varying': Varying,}
+    )

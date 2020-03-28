@@ -3,3 +3,4 @@ pytest
 pygame
 networkx
 numpy
+pydot

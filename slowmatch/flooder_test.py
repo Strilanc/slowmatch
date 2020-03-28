@@ -21,8 +21,7 @@ class RecordingFlooder(Flooder):
     def set_region_growth(self, region_id: int, *, new_growth: int):
         if self.sub_flooder is not None:
             self.sub_flooder.set_region_growth(region_id, new_growth=new_growth)
-        self.recorded_commands.append(
-            ('set_region_growth', region_id, new_growth))
+        self.recorded_commands.append(('set_region_growth', region_id, new_growth))
 
     def create_blossom(self, contained_region_ids):
         if self.sub_flooder is None:
@@ -30,8 +29,7 @@ class RecordingFlooder(Flooder):
             self._next_id += 1
         else:
             result = self.sub_flooder.create_blossom(contained_region_ids)
-        self.recorded_commands.append(
-            ('create_combined_region', tuple(contained_region_ids), result))
+        self.recorded_commands.append(('create_blossom', tuple(contained_region_ids), result))
         return result
 
     def next_event(self, max_time=None):

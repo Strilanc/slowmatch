@@ -10,11 +10,13 @@ def alternating_tree_builder():
     """Returns a handy method for creating alternating trees."""
     counter = 0
 
-    def make_tree(*children: InnerNode,
-                  inner_id: Optional[int] = None,
-                  outer_id: Optional[int] = None,
-                  child: Optional[InnerNode] = None,
-                  root: bool = False) -> Union[OuterNode, InnerNode]:
+    def make_tree(
+        *children: InnerNode,
+        inner_id: Optional[int] = None,
+        outer_id: Optional[int] = None,
+        child: Optional[InnerNode] = None,
+        root: bool = False,
+    ) -> Union[OuterNode, InnerNode]:
         if child is not None:
             children = children + (child,)
 
@@ -38,9 +40,7 @@ def alternating_tree_builder():
 
 
 def alternating_tree_map(
-        tree: OuterNode,
-        *,
-        out: Optional[Dict[int, Union[OuterNode, InnerNode]]] = None,
+    tree: OuterNode, *, out: Optional[Dict[int, Union[OuterNode, InnerNode]]] = None,
 ) -> Dict[int, Union[OuterNode, InnerNode]]:
     """Returns a dictionary mapping node region ids to nodes from the tree."""
     if out is None:
@@ -54,17 +54,10 @@ def alternating_tree_map(
 
 def test_tree_str():
     t = alternating_tree_builder()
-    tree = t(
-        t(
-            t(),
-            t(),
-            t(),
-        ),
-        t(),
-        inner_id=200,
-        outer_id=201,
-    )
-    assert str(tree) == """
+    tree = t(t(t(), t(), t(),), t(), inner_id=200, outer_id=201,)
+    assert (
+        str(tree)
+        == """
 200 ===> 201
 +---6 ===> 7
 |   +---0 ===> 1
@@ -72,8 +65,11 @@ def test_tree_str():
 |   +---4 ===> 5
 +---8 ===> 9
 """.strip()
+    )
 
-    assert str(tree.child) == """
+    assert (
+        str(tree.child)
+        == """
 201
 +---6 ===> 7
 |   +---0 ===> 1
@@ -81,47 +77,30 @@ def test_tree_str():
 |   +---4 ===> 5
 +---8 ===> 9
 """.strip()
+    )
 
-    assert str(tree.child.children[0]) == """
+    assert (
+        str(tree.child.children[0])
+        == """
 6 ===> 7
 +---0 ===> 1
 +---2 ===> 3
 +---4 ===> 5
 """.strip()
+    )
 
 
 def test_tree_equality():
     eq = cirq.testing.EqualsTester()
 
     t = alternating_tree_builder()
-    tree1 = t(
-        t(
-            t(),
-            t(),
-            t(),
-        ),
-        t(),
-    )
+    tree1 = t(t(t(), t(), t(),), t(),)
 
     t = alternating_tree_builder()
-    tree2 = t(
-        t(
-            t(),
-            t(),
-            t(),
-        ),
-        t(),
-    )
+    tree2 = t(t(t(), t(), t(),), t(),)
 
     t = alternating_tree_builder()
-    tree3 = t(
-        t(
-            t(),
-            t(inner_id=100),
-            t(),
-        ),
-        t(),
-    )
+    tree3 = t(t(t(), t(inner_id=100), t(),), t(),)
 
     eq.add_equality_group(tree1, tree2)
     eq.add_equality_group(tree1.child, tree2.child)
@@ -132,17 +111,7 @@ def test_tree_equality():
 
 def test_most_recent_common_ancestor():
     t = alternating_tree_builder()
-    tree = t(
-        t(
-            t(),
-            t(),
-            t(
-                t(),
-            )
-        ),
-        t(),
-        root=True
-    )
+    tree = t(t(t(), t(), t(t(),)), t(), root=True)
     c0 = tree.children[0].child
     c1 = tree.children[1].child
     c00 = c0.children[0].child
@@ -165,11 +134,7 @@ def test_become_root():
         t(
             t(inner_id=10, outer_id=11),
             t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=6, outer_id=7),
-                inner_id=12,
-                outer_id=13,
-            ),
+            t(t(inner_id=6, outer_id=7), inner_id=12, outer_id=13,),
             inner_id=4,
             outer_id=5,
         ),
@@ -184,11 +149,7 @@ def test_become_root():
         t(
             t(inner_id=10, outer_id=11),
             t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=2, outer_id=3),
-                inner_id=4,
-                outer_id=1,
-            ),
+            t(t(inner_id=2, outer_id=3), inner_id=4, outer_id=1,),
             inner_id=12,
             outer_id=5,
         ),
@@ -203,11 +164,7 @@ def test_outer_ancestry():
         t(
             t(inner_id=10, outer_id=11),
             t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=6, outer_id=7),
-                inner_id=12,
-                outer_id=13,
-            ),
+            t(t(inner_id=6, outer_id=7), inner_id=12, outer_id=13,),
             inner_id=4,
             outer_id=5,
         ),
@@ -234,11 +191,7 @@ def test_prune_upward_path_stopping_before():
         t(
             t(inner_id=10, outer_id=11),
             t(inner_id=8, outer_id=9),
-            t(
-                t(inner_id=6, outer_id=7),
-                inner_id=12,
-                outer_id=13,
-            ),
+            t(t(inner_id=6, outer_id=7), inner_id=12, outer_id=13,),
             inner_id=4,
             outer_id=5,
         ),
@@ -250,16 +203,15 @@ def test_prune_upward_path_stopping_before():
     c0 = tree.children[0]
     c02 = c0.child.children[2]
     result = c02.child.prune_upward_path_stopping_before(tree)
-    assert tree == t(
-        t(inner_id=2, outer_id=3),
-        outer_id=1,
-        root=True,
-    )
+    assert tree == t(t(inner_id=2, outer_id=3), outer_id=1, root=True,)
     assert result.orphans == [
         c02.child.children[0],
         c0.child.children[0],
         c0.child.children[1],
     ]
     assert result.pruned_path_regions == [
-        13, 12, 5, 4,
+        13,
+        12,
+        5,
+        4,
     ]
