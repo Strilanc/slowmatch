@@ -29,12 +29,12 @@ def complex_grid_boundary(pos: complex) -> bool:
 
 
 DETECTION_COUNT = 20
-CIRCLES = False
+CIRCLES = True
 SCALE = 20
 TIME_SCALE = 100 / (100 if CIRCLES else 1)
 ERROR_RATE = 0.03
-WIDTH = 1500
-HEIGHT = 1000
+WIDTH = 800
+HEIGHT = 600
 
 
 def generate_case(width: int, height: int):

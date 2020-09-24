@@ -1,6 +1,6 @@
 import dataclasses
 import math
-from typing import TypeVar, List, Tuple, Optional, Dict, Union, Iterator
+from typing import TypeVar, List, Tuple, Optional, Dict, Union, Iterator, Any
 
 import cirq
 
@@ -238,6 +238,17 @@ class CircleFlooder(Flooder[complex]):
             key=lambda e: e[0].distance_from_at(e[1], time),
         )
         return x.source, y.source
+
+    def region_boundary_pair_to_line_segment_at_time(
+        self, region1: int, boundary: Any, time: float
+    ) -> Tuple[complex, complex]:
+        r1 = self._find_potentially_inactive_region(region1)
+        c: complex = min(
+            [a.source for a in r1.iter_all_circles()],
+            key=lambda e: abs(abs(e) - self.boundary_radius),
+        )
+        d = c / abs(c) * self.boundary_radius
+        return c, d
 
     def draw(self, *, screen, time_delta: float = 0, scale: float = 1):
         # coverage: ignore
