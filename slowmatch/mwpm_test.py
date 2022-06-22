@@ -175,6 +175,14 @@ def test_blossom_implosion():
         ('set_region_growth', 13, -1),
         ('set_region_growth', 11, +1),
         # Blossom imploding.
+        # Region growth of matches set to zero (to ensure they are rescheduled)
+        ('set_region_growth', 10, 0),
+        ('set_region_growth', 0, 0),
+        ('set_region_growth', 1, 0),
+        ('set_region_growth', 2, 0),
+        ('set_region_growth', 3, 0),
+        ('set_region_growth', 4, 0),
+        # Then odd-length path region growth set for outer and inner nodes
         ('set_region_growth', 9, -1),
         ('set_region_growth', 8, +1),
         ('set_region_growth', 7, -1),

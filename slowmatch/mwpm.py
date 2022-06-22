@@ -86,6 +86,10 @@ class Mwpm:
             b = matches[k + 1]
             self.match_map[a] = b
             self.match_map[b] = a
+            # Set region growth to zero (even though already zero) to ensure
+            # these regions are rescheduled.
+            self.fill_system.set_region_growth(a, new_growth=0)
+            self.fill_system.set_region_growth(b, new_growth=0)
 
         # The odd length path is inserted into the alternating tree.
         ancestor: OuterNode = self.tree_id_map[out_parent_id]
