@@ -1,4 +1,4 @@
-cirq==0.7.0
+cirq==0.14.1
 pytest
 pygame
 networkx
