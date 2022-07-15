@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict
 
 from slowmatch.graph_fill_region import GraphFillRegion, Match
-from slowmatch.graph import LocationData
+from slowmatch.graph import DetectorNode
 from slowmatch.region_path import RegionPath, RegionEdge
 from slowmatch.region_path_test import gen_blossom_cycle
 from slowmatch.compressed_edge import CompressedEdge
@@ -15,7 +15,7 @@ def blossom_builder():
         if loc is None:
             return None
         if loc not in _loc_data:
-            _loc_data[loc] = LocationData(loc=loc)
+            _loc_data[loc] = DetectorNode(loc=loc)
         return _loc_data[loc]
 
     def make_blossom(
@@ -58,7 +58,7 @@ def test_shatter_region_into_matches():
     b = GraphFillRegion(id=0)
     c = gen_blossom_cycle(region_ids=[1, 2, 3, 4, 5])
     b.blossom_children = c
-    loc = LocationData(loc=0)
+    loc = DetectorNode(loc=0)
     loc.region_that_arrived = b.blossom_children[1].region
     matches, region = b.shatter_into_matches_and_region(exclude_location=loc)
     assert matches == [c[2].region, c[4].region]

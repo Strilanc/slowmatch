@@ -6,7 +6,7 @@ from scipy.spatial import Voronoi
 import numpy as np
 
 if TYPE_CHECKING:
-    from slowmatch.graph import LocationData
+    from slowmatch.graph import DetectorNode
 
 
 def is_left_turn(p1: complex, p2: complex, p3: complex) -> bool:
@@ -34,7 +34,7 @@ def graham_scan(points: Iterable[complex]) -> List[complex]:
     return stack
 
 
-def get_unit_radius_polygon_around_node(source: 'LocationData') -> List[complex]:
+def get_unit_radius_polygon_around_node(source: 'DetectorNode') -> List[complex]:
     rel_neighbors = [n.loc - source.loc for n in source.neighbors_with_boundary]
     corners = [rel_neighbors[i]/source.distances[i] for i in range(len(source.neighbors))]
     return sorted(corners, key=lambda x: math.atan2(x.imag, x.real))

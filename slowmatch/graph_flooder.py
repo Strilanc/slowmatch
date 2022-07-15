@@ -9,7 +9,7 @@ from typing import (
 
 import networkx as nx
 
-from slowmatch.graph import Graph, LocationData, graph_from_networkx
+from slowmatch.graph import Graph, DetectorNode, graph_from_networkx
 from slowmatch.graph_fill_region import GraphFillRegion
 from slowmatch.logger import Logger
 from slowmatch.varying import Varying
@@ -121,8 +121,8 @@ class GraphFlooder(Generic[TLocation]):
         return blossom_region
 
     def _schedule_tentative_neighbor_interaction_event(
-        self, location_data_1: LocationData, schedule_list_index_1: int,
-            location_data_2: Optional[LocationData], schedule_list_index_2: Optional[int],
+        self, location_data_1: DetectorNode, schedule_list_index_1: int,
+            location_data_2: Optional[DetectorNode], schedule_list_index_2: Optional[int],
             time: float
     ):
         tentative_event = TentativeNeighborInteractionEvent(
@@ -164,7 +164,7 @@ class GraphFlooder(Generic[TLocation]):
             for location_data in region.iter_total_area():
                 self.reschedule_events_at_location(location_data=location_data)
 
-    def reschedule_events_at_location(self, *, location_data: 'LocationData') -> None:
+    def reschedule_events_at_location(self, *, location_data: 'DetectorNode') -> None:
         location_data.invalidate_involved_schedule_items()
 
         rad1 = location_data.local_radius()
@@ -198,8 +198,8 @@ class GraphFlooder(Generic[TLocation]):
             )
 
     def _do_region_arriving_at_empty_location(
-        self, *, region: GraphFillRegion, location_data: LocationData,
-            from_location_data: Optional[LocationData] = None, neighbor_index: Optional[int] = None
+        self, *, region: GraphFillRegion, location_data: DetectorNode,
+            from_location_data: Optional[DetectorNode] = None, neighbor_index: Optional[int] = None
     ):
 
         assert region.radius.slope > 0

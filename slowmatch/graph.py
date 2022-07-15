@@ -17,15 +17,15 @@ TLocation = TypeVar('TLocation')
 
 @dataclasses.dataclass
 class Graph:
-    nodes: Dict[TLocation, 'LocationData'] = dataclasses.field(default_factory=lambda: dict())
+    nodes: Dict[TLocation, 'DetectorNode'] = dataclasses.field(default_factory=lambda: dict())
     num_observables: int = 0
 
     def add_edge(self, u: TLocation, v: TLocation, weight: int, observables: int):
         """Add an edge to the graph."""
         if u not in self.nodes:
-            self.nodes[u] = LocationData(loc=u)
+            self.nodes[u] = DetectorNode(loc=u)
         if v not in self.nodes:
-            self.nodes[v] = LocationData(loc=v)
+            self.nodes[v] = DetectorNode(loc=v)
 
         udata = self.nodes[u]
         vdata = self.nodes[v]
@@ -51,10 +51,10 @@ class Graph:
     def add_boundary_edge(self, u: TLocation, weight: int, observables: int,
                           boundary_node: Optional[TLocation] = None):
         if u not in self.nodes:
-            self.nodes[u] = LocationData(loc=u)
+            self.nodes[u] = DetectorNode(loc=u)
         if boundary_node is not None:
             if boundary_node not in self.nodes:
-                self.nodes[boundary_node] = LocationData(loc=boundary_node)
+                self.nodes[boundary_node] = DetectorNode(loc=boundary_node)
             vdata = self.nodes[boundary_node]
         else:
             vdata = None
@@ -77,7 +77,7 @@ class Graph:
             vdata.observables.append(observables)
             vdata.schedule_list.append(None)
 
-    def iter_all_edges(self) -> Iterator[Tuple['LocationData', int]]:
+    def iter_all_edges(self) -> Iterator[Tuple['DetectorNode', int]]:
         seen_nodes = set()
         seen_edges = set()
         for node in self.nodes.values():
@@ -105,15 +105,22 @@ class Graph:
             )
 
 
-class LocationData(Generic[TLocation]):
+class DetectorNode(Generic[TLocation]):
+    """A node in the detector graph.
+
+    Corresponds to a comparison performed to check for errors. A potential
+    location where detection events can occur. Edges between these nodes
+    correspond to physical errors.
+    """
+
     def __init__(self, loc: TLocation) -> None:
         self.loc = loc
         self.observables_crossed: int = 0
-        self.reached_from_source: Optional[LocationData] = None
+        self.reached_from_source: Optional[DetectorNode] = None
         self.distance_from_source: Optional[int] = None
         self.region_that_arrived: Optional['GraphFillRegion'] = None
-        self.neighbors: List[Optional['LocationData']] = []
-        self.neighbors_with_boundary: List['LocationData'] = []
+        self.neighbors: List[Optional['DetectorNode']] = []
+        self.neighbors_with_boundary: List['DetectorNode'] = []
         self.distances: List[int] = []
         self.observables: List[int] = []
         self.schedule_list: List[Optional[TentativeEvent]] = []
@@ -125,7 +132,7 @@ class LocationData(Generic[TLocation]):
     def num_neighbors(self) -> int:
         return len(self.neighbors)
 
-    def has_same_owner_as(self, other: 'LocationData') -> bool:
+    def has_same_owner_as(self, other: 'DetectorNode') -> bool:
         if not self.region_that_arrived or not other.region_that_arrived:
             return False
         return self.top_region() is other.top_region()
@@ -192,7 +199,7 @@ class LocationData(Generic[TLocation]):
             return self.region_that_arrived.blossom_parent is None
         return False
 
-    def distance_from_source_almost_reached_from(self, source: 'LocationData') -> int:
+    def distance_from_source_almost_reached_from(self, source: 'DetectorNode') -> int:
         min_d = math.inf
         for i in range(len(self.neighbors)):
             v = self.neighbors_with_boundary[i]

@@ -3,7 +3,7 @@ from typing import TypeVar, List, Tuple, TYPE_CHECKING, Iterator
 
 from slowmatch.alternating_tree import AltTreeNode, AltTreeEdge
 from slowmatch.graph_flooder import (GraphFlooder)
-from slowmatch.graph import LocationData
+from slowmatch.graph import DetectorNode
 from slowmatch.graph_fill_region import Match, GraphFillRegion
 from slowmatch.events import (MwpmEvent, RegionHitRegionEvent,
                               BlossomImplodeEvent, RegionHitBoundaryEvent)
@@ -22,7 +22,7 @@ class Mwpm:
 
     def __init__(self, flooder: GraphFlooder):
         self.fill_system: GraphFlooder = flooder
-        self.detection_events: List[LocationData] = []
+        self.detection_events: List[DetectorNode] = []
         self.match_edges: List['CompressedEdge'] = []
 
     def add_region(self, region: 'GraphFillRegion'):

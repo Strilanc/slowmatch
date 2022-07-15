@@ -9,7 +9,7 @@ from slowmatch.geometry import get_unit_radius_polygon_around_node
 
 if TYPE_CHECKING:
     from slowmatch.events import TentativeRegionShrinkEvent
-    from slowmatch.graph import LocationData
+    from slowmatch.graph import DetectorNode
     from slowmatch.alternating_tree import AltTreeNode
     import pygame
 
@@ -28,7 +28,7 @@ class GraphFillRegion(Generic[TLocation]):
         self,
         *,
         id: int,
-        source: Optional['LocationData'] = None,
+        source: Optional['DetectorNode'] = None,
         radius: Union[int, float, 'Varying'] = Varying.T,
         blossom_parent: Optional['GraphFillRegion'] = None,
         blossom_children: Optional[RegionPath] = None,
@@ -36,7 +36,7 @@ class GraphFillRegion(Generic[TLocation]):
     ):
         self.id = id
         self.source = source
-        self.shell_area: List['LocationData'] = []
+        self.shell_area: List['DetectorNode'] = []
         self.radius = Varying(radius)
         self.blossom_children: Optional['RegionPath'] = (
             RegionPath() if blossom_children is None else blossom_children
@@ -46,7 +46,7 @@ class GraphFillRegion(Generic[TLocation]):
         self.shrink_event: Optional['TentativeRegionShrinkEvent'] = None
         self.match: Optional[Match] = None
 
-    def iter_total_area(self) -> Iterator['LocationData']:
+    def iter_total_area(self) -> Iterator['DetectorNode']:
         for loc in reversed(self.shell_area):
             yield loc
         for child in self.blossom_children:
@@ -74,7 +74,7 @@ class GraphFillRegion(Generic[TLocation]):
             self.shrink_event.invalidate()
             self.shrink_event = None
 
-    def iter_all_sources(self) -> Iterator['LocationData']:
+    def iter_all_sources(self) -> Iterator['DetectorNode']:
         if self.source is not None:
             yield self.source
         if self.blossom_children is not None:
@@ -125,7 +125,7 @@ class GraphFillRegion(Generic[TLocation]):
 
     def shatter_into_matches_and_region(
             self,
-            exclude_location: 'LocationData'
+            exclude_location: 'DetectorNode'
     ) -> Tuple[List['GraphFillRegion'], 'GraphFillRegion']:
         self.cleanup_shell_area()
 

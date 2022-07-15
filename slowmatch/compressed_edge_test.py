@@ -6,16 +6,16 @@ import stim
 import numpy as np
 
 from slowmatch.compressed_edge import CompressedEdge, join_edges
-from slowmatch.graph import LocationData, Graph
+from slowmatch.graph import DetectorNode, Graph
 from slowmatch.exposed import Matching
 
 
-l0 = LocationData(loc=0)
-l1 = LocationData(loc=1)
-l2 = LocationData(loc=2)
-l3 = LocationData(loc=3)
-l4 = LocationData(loc=4)
-l5 = LocationData(loc=5)
+l0 = DetectorNode(loc=0)
+l1 = DetectorNode(loc=1)
+l2 = DetectorNode(loc=2)
+l3 = DetectorNode(loc=3)
+l4 = DetectorNode(loc=4)
+l5 = DetectorNode(loc=5)
 
 
 def test_compressed_edge_equality():

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional, Tuple, List
 
 
 if TYPE_CHECKING:
-    from slowmatch.graph import LocationData
+    from slowmatch.graph import DetectorNode
     import pygame
 
 
@@ -16,7 +16,7 @@ def join_edges(edges: List['CompressedEdge']) -> 'CompressedEdge':
     return x
 
 
-def _path_from_predecessors(node: 'LocationData') -> List['CompressedEdge']:
+def _path_from_predecessors(node: 'DetectorNode') -> List['CompressedEdge']:
     edges = []
     while node.search_predecessor is not None:
         next_node = node.neighbors_with_boundary[node.search_predecessor]
@@ -32,13 +32,13 @@ def _path_from_predecessors(node: 'LocationData') -> List['CompressedEdge']:
     return [e.reversed() for e in reversed(edges)]
 
 
-def _cleanup_searched_nodes(nodes: List['LocationData']):
+def _cleanup_searched_nodes(nodes: List['DetectorNode']):
     for node in nodes:
         node.search_predecessor = None
         node.distance_from_search_source = None
 
 
-def _min_edge_to_boundary(node: 'LocationData') -> Tuple[int, int]:
+def _min_edge_to_boundary(node: 'DetectorNode') -> Tuple[int, int]:
     min_bound_distance = math.inf
     min_bound_obs = None
     for i in range(len(node.neighbors)):
@@ -58,8 +58,8 @@ class CompressedEdge:
         - The distance that was crossed.
         - The endpoint(s).
     """
-    loc_from: 'LocationData'
-    loc_to: Optional['LocationData']
+    loc_from: 'DetectorNode'
+    loc_to: Optional['DetectorNode']
     obs_mask: int
     distance: int
 
@@ -104,7 +104,7 @@ class CompressedEdge:
         elif self.loc_from is None:
             return list(reversed([e.reversed() for e in self.reversed().to_path()]))
         explored = []
-        queue: List[Tuple[int, int, 'LocationData']] = []
+        queue: List[Tuple[int, int, 'DetectorNode']] = []
         current_node = self.loc_from
         current_node.distance_from_search_source = 0
         heapq.heappush(queue, (0, 0, current_node))
@@ -157,7 +157,7 @@ class CompressedEdge:
         raise ValueError(f"No path found from {self.loc_from.loc} to {src2}")
 
     def draw(self, screen: 'pygame.Surface', scale: float, rgb: Tuple[int, int, int], width: int = 4) -> None:
-        """Draws the compressed edge, provided LocationData.loc is of type `complex'"""
+        """Draws the compressed edge, provided DetectorNode.loc is of type `complex'"""
         import pygame
         if self.loc_from is not None and self.loc_to is not None:
             pygame.draw.line(

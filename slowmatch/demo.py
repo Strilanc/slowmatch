@@ -12,7 +12,7 @@ from slowmatch.graph_flooder import GraphFlooder
 from slowmatch.mwpm import Mwpm
 from slowmatch.exposed import graph_from_neighbors_and_boundary
 from slowmatch.geometry import voronoi_from_points
-from slowmatch.graph import LocationData
+from slowmatch.graph import DetectorNode
 
 with contextlib.redirect_stdout(None):
     import pygame
@@ -112,7 +112,7 @@ class Demo:
     def complex_grid_boundary(self, pos: complex) -> bool:
         return not 0 < pos.real < self.width / self.scale or not 0 < pos.imag < self.height / self.scale
 
-    def points_on_graph(self) -> Iterator[Tuple['LocationData', int, complex]]:
+    def points_on_graph(self) -> Iterator[Tuple['DetectorNode', int, complex]]:
         for node in self.mwpm.fill_system.graph.nodes.values():
             yield node, None, node.loc
         for node, i in self.mwpm.fill_system.graph.iter_all_edges():

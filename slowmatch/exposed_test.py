@@ -13,7 +13,7 @@ import networkx as nx
 from slowmatch.exposed import (Matching, graph_from_neighbors_and_boundary, embedded_min_weight_match,
                                detector_error_model_to_nx_graph, discretize_weights, set_bits)
 from slowmatch.compressed_edge import CompressedEdge
-from slowmatch.graph import LocationData
+from slowmatch.graph import DetectorNode
 
 
 def nx_graph_to_pymatching(g: nx.Graph) -> pymatching.Matching:

@@ -12,7 +12,7 @@ TLocation = TypeVar('TLocation')
 
 if TYPE_CHECKING:
     from slowmatch.compressed_edge import CompressedEdge
-    from slowmatch.graph import LocationData
+    from slowmatch.graph import DetectorNode
     from slowmatch.graph_fill_region import GraphFillRegion
 
 
@@ -70,9 +70,9 @@ class TentativeEvent(Generic[TLocation]):
 
 @dataclasses.dataclass
 class TentativeNeighborInteractionEvent(TentativeEvent):
-    location_data_1: 'LocationData'
+    location_data_1: 'DetectorNode'
     schedule_list_index_1: int
-    location_data_2: Optional['LocationData']
+    location_data_2: Optional['DetectorNode']
     schedule_list_index_2: Optional[int]
     is_invalidated: bool = False
 
@@ -86,7 +86,7 @@ class TentativeNeighborInteractionEvent(TentativeEvent):
 
     def __repr__(self):
         return f"TentativeNeighborInteraction({self.time},{self.event_id}," \
-               f"LocationData({self.location_data_1.loc}),LocationData({self.location_data_2.loc})," \
+               f"DetectorNode({self.location_data_1.loc}),DetectorNode({self.location_data_2.loc})," \
                f"{self.is_invalidated})"
 
 

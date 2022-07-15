@@ -5,7 +5,7 @@ import pytest
 
 from slowmatch.alternating_tree import AltTreeNode, AltTreeEdge
 from slowmatch.compressed_edge import CompressedEdge
-from slowmatch.graph import LocationData
+from slowmatch.graph import DetectorNode
 from slowmatch.graph_fill_region import GraphFillRegion
 from slowmatch.region_path import RegionPath, RegionEdge
 
@@ -34,8 +34,8 @@ def alternating_tree_builder():
                 inner_region=GraphFillRegion(id=inner_id),
                 outer_region=GraphFillRegion(id=outer_id),
                 inner_outer_edge=CompressedEdge(
-                    loc_from=LocationData(loc=inner_id),
-                    loc_to=LocationData(loc=outer_id),
+                    loc_from=DetectorNode(loc=inner_id),
+                    loc_to=DetectorNode(loc=outer_id),
                     obs_mask=0,
                     distance=1
                 )
@@ -45,8 +45,8 @@ def alternating_tree_builder():
                 child=AltTreeEdge(
                     node=child,
                     edge=CompressedEdge(
-                        loc_from=LocationData(loc=node.outer_region.id),
-                        loc_to=LocationData(loc=child.inner_region.id),
+                        loc_from=DetectorNode(loc=node.outer_region.id),
+                        loc_to=DetectorNode(loc=child.inner_region.id),
                         obs_mask=0,
                         distance=1
                     )
@@ -207,8 +207,8 @@ def gen_blossom_edge_path(region_ids: List[int]) -> RegionPath:
         e = RegionEdge(
             region=GraphFillRegion(id=region_ids[i]),
             edge=CompressedEdge(
-                loc_from=LocationData(loc=region_ids[i]),
-                loc_to=LocationData(loc=region_ids[i+1]),
+                loc_from=DetectorNode(loc=region_ids[i]),
+                loc_to=DetectorNode(loc=region_ids[i + 1]),
                 obs_mask=0,
                 distance=1
             )
