@@ -34,8 +34,8 @@ def blossom_builder():
         return RegionEdge(
             region=blossom,
             edge=CompressedEdge(
-                source1=loc_data(this_source_id),
-                source2=loc_data(next_source_id),
+                loc_from=loc_data(this_source_id),
+                loc_to=loc_data(next_source_id),
                 obs_mask=0,
                 distance=1
             )
@@ -119,8 +119,8 @@ def test_match_to_subblossom_matches():
     c.add_match(
         match=d,
         edge=CompressedEdge(
-            source1=c.blossom_children[1].region.source,
-            source2=d.blossom_children[4].region.source,
+            loc_from=c.blossom_children[1].region.source,
+            loc_to=d.blossom_children[4].region.source,
             obs_mask=0,
             distance=1
         )
@@ -174,8 +174,8 @@ def test_boundary_match_to_subblossom_matches():
 
     blossom6.region.match = Match(region=None,
                                   edge=CompressedEdge(
-                                      source1=blossom6.region.blossom_children[2].region.source,
-                                      source2=None,
+                                      loc_from=blossom6.region.blossom_children[2].region.source,
+                                      loc_to=None,
                                       obs_mask=0,
                                       distance=1
                                   ))

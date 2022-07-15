@@ -32,8 +32,8 @@ def alternating_tree_builder(region_maker: Callable[[int], GraphFillRegion]):
                 inner_region=region_maker(inner_id),
                 outer_region=region_maker(outer_id),
                 inner_outer_edge=CompressedEdge(
-                    source1=LocationData(loc=source1),
-                    source2=LocationData(loc=source2),
+                    loc_from=LocationData(loc=source1),
+                    loc_to=LocationData(loc=source2),
                     obs_mask=0,
                     distance=1
                 )
@@ -41,8 +41,8 @@ def alternating_tree_builder(region_maker: Callable[[int], GraphFillRegion]):
         alt_tree_edge = AltTreeEdge(
             node=node,
             edge=CompressedEdge(
-                source1=LocationData(loc=parent_source),
-                source2=LocationData(loc=child_source),
+                loc_from=LocationData(loc=parent_source),
+                loc_to=LocationData(loc=child_source),
                 obs_mask=0,
                 distance=1
             )
@@ -67,8 +67,8 @@ def region_hit_region_builder(fill: RecordingFlooder):
             region2=get_region(r2),
             time=1,
             edge=CompressedEdge(
-                source1=LocationData(loc=s1) if s1 is not None else None,
-                source2=LocationData(loc=s2) if s2 is not None else None,
+                loc_from=LocationData(loc=s1) if s1 is not None else None,
+                loc_to=LocationData(loc=s2) if s2 is not None else None,
                 obs_mask=0,
                 distance=1
             )
@@ -78,8 +78,8 @@ def region_hit_region_builder(fill: RecordingFlooder):
         return RegionEdge(
             region=get_region(br),
             edge=CompressedEdge(
-                source1=LocationData(s1),
-                source2=LocationData(s2),
+                loc_from=LocationData(s1),
+                loc_to=LocationData(s2),
                 obs_mask=0,
                 distance=1
             )

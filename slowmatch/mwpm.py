@@ -270,11 +270,11 @@ class Mwpm:
         seen = set()
         depth = None if self.fill_system.has_valid_events_queued() else max_depth
         for r in list(self.iter_all_top_level_regions()):
-            if r.match is not None and r.match.edge.source1.loc not in seen:
-                seen.add(r.match.edge.source1.loc)
+            if r.match is not None and r.match.edge.loc_from.loc not in seen:
+                seen.add(r.match.edge.loc_from.loc)
                 area = list(r.iter_total_area())
                 if r.match.region is not None:
-                    seen.add(r.match.edge.source2.loc)
+                    seen.add(r.match.edge.loc_to.loc)
                     area += list(r.match.region.iter_total_area())
                 for a in area:
                     a.invalidate_involved_schedule_items()

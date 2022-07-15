@@ -66,8 +66,8 @@ class AltTreeNode:
         if self.inner_region is None:
             this_node = ((None, None), (self.outer_region.id, None))
         else:
-            this_node = ((self.inner_region.id, self.inner_outer_edge.source1.loc),
-                         (self.outer_region.id, self.inner_outer_edge.source2.loc))
+            this_node = ((self.inner_region.id, self.inner_outer_edge.loc_from.loc),
+                         (self.outer_region.id, self.inner_outer_edge.loc_to.loc))
         return this_node, tuple(c.node.as_tuple() for c in self.children)
 
     def __eq__(self, other: Any) -> bool:

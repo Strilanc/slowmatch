@@ -59,7 +59,7 @@ def test_embedded_min_weight_match():
         graph = networkx.nx_pydot.from_pydot(g[0])
     result = embedded_min_weight_match(graph)
     m1, m2 = result.match_edges
-    assert ((m1.source1.loc, m1.source2.loc), (m2.source1.loc, m2.source2.loc)) == (("b", "LEFT"), ("e", "RIGHT"))
+    assert ((m1.loc_from.loc, m1.loc_to.loc), (m2.loc_from.loc, m2.loc_to.loc)) == (("b", "LEFT"), ("e", "RIGHT"))
 
 
 def rep_neighbors(pos: complex) -> List[Tuple[int, int, complex]]:
@@ -164,9 +164,9 @@ def test_complex_grid():
         res = matching.decode_from_event_locations(locs)
         match_locs = set()
         for e in res.match_edges:
-            match_locs.add(e.source1.loc)
-            if not complex_grid_boundary(e.source2.loc):
-                match_locs.add(e.source2.loc)
+            match_locs.add(e.loc_from.loc)
+            if not complex_grid_boundary(e.loc_to.loc):
+                match_locs.add(e.loc_to.loc)
         assert match_locs == set(locs)
 
 

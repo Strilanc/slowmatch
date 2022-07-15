@@ -12,8 +12,8 @@ def gen_blossom_edge_path(region_ids: List[int]) -> RegionPath:
         e = RegionEdge(
             region=GraphFillRegion(id=region_ids[i]),
             edge=CompressedEdge(
-                source1=LocationData(loc=region_ids[i]),
-                source2=LocationData(loc=region_ids[i+1]),
+                loc_from=LocationData(loc=region_ids[i]),
+                loc_to=LocationData(loc=region_ids[i+1]),
                 obs_mask=0,
                 distance=1
             )
@@ -40,8 +40,8 @@ def gen_blossom_cycle(region_ids: List[int]) -> RegionPath:
         e = RegionEdge(
             region=GraphFillRegion(id=region_ids[i]),
             edge = CompressedEdge(
-                source1=LocationData(loc=region_ids[i]),
-                source2=LocationData(loc=region_ids[(i+1) % n]),
+                loc_from=LocationData(loc=region_ids[i]),
+                loc_to=LocationData(loc=region_ids[(i+1) % n]),
                 obs_mask=0,
                 distance=1
             )

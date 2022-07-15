@@ -155,7 +155,7 @@ class GraphFillRegion(Generic[TLocation]):
             return [this_region]
         out = []
         if children_here:
-            matches_1, region_1 = self.shatter_into_matches_and_region(exclude_location=self.match.edge.source1)
+            matches_1, region_1 = self.shatter_into_matches_and_region(exclude_location=self.match.edge.loc_from)
             region_1.match = self.match
             if match_region is not None:
                 match_region.match.region = region_1
@@ -163,7 +163,7 @@ class GraphFillRegion(Generic[TLocation]):
             out.extend(m for match in matches_1 for m in match.to_subblossom_matches(
                 max_depth=max_depth, depth=depth + 1))
         if children_there:
-            matches_2, region_2 = match_region.shatter_into_matches_and_region(exclude_location=this_region.match.edge.source2)
+            matches_2, region_2 = match_region.shatter_into_matches_and_region(exclude_location=this_region.match.edge.loc_to)
             region_2.match = match_region.match
             this_region.match.region = region_2
             out.extend(m for match in matches_2 for m in match.to_subblossom_matches(

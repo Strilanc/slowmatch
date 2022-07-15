@@ -113,15 +113,15 @@ def get_helper_functions_from_fill_system(fill: RecordingFlooder):
 
     def make_region_edge(r: int, s1: int, s2: int, d: int):
         return RegionEdge(region=get_region(r), edge=CompressedEdge(
-                source1=find_loc(s1), source2=find_loc(s2), obs_mask=0, distance=d
+                loc_from=find_loc(s1), loc_to=find_loc(s2), obs_mask=0, distance=d
                 )
             )
 
     def region_hit_region_maker(t: float, r1: int, r2: int, s1: int, s2: int, o: int, d: int):
         return RegionHitRegionEvent(time=t, region1=get_region(r1), region2=get_region(r2),
                                     edge=CompressedEdge(
-                                         source1=find_loc(s1),
-                                         source2=find_loc(s2), obs_mask=o, distance=d
+                                         loc_from=find_loc(s1),
+                                         loc_to=find_loc(s2), obs_mask=o, distance=d
                                      ))
     return get_region, find_loc, make_region_edge, region_hit_region_maker
 

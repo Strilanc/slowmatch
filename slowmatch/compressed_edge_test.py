@@ -20,11 +20,11 @@ l5 = LocationData(loc=5)
 
 def test_compressed_edge_equality():
     eq = cirq.testing.EqualsTester()
-    a = CompressedEdge(source1=l0, source2=l1, obs_mask=0, distance=1)
-    b = CompressedEdge(source1=l0, source2=l2, obs_mask=0, distance=1)
-    c = CompressedEdge(source1=l0, source2=l1, obs_mask=0, distance=1)
-    d = CompressedEdge(source1=l0, source2=l1, obs_mask=1, distance=1)
-    e = CompressedEdge(source1=l0, source2=l1, obs_mask=1, distance=2)
+    a = CompressedEdge(loc_from=l0, loc_to=l1, obs_mask=0, distance=1)
+    b = CompressedEdge(loc_from=l0, loc_to=l2, obs_mask=0, distance=1)
+    c = CompressedEdge(loc_from=l0, loc_to=l1, obs_mask=0, distance=1)
+    d = CompressedEdge(loc_from=l0, loc_to=l1, obs_mask=1, distance=1)
+    e = CompressedEdge(loc_from=l0, loc_to=l1, obs_mask=1, distance=2)
     eq.add_equality_group(a, c)
     eq.add_equality_group(b)
     eq.add_equality_group(d)
@@ -33,14 +33,14 @@ def test_compressed_edge_equality():
 
 def test_reversed_compressed_edge():
     a = CompressedEdge(
-        source1=l0,
-        source2=l1,
+        loc_from=l0,
+        loc_to=l1,
         obs_mask=0,
         distance=1
     )
     b = CompressedEdge(
-        source1=l1,
-        source2=l0,
+        loc_from=l1,
+        loc_to=l0,
         obs_mask=0,
         distance=1
     )
@@ -49,44 +49,44 @@ def test_reversed_compressed_edge():
 
 def test_merge_compressed_edge():
     a = CompressedEdge(
-        source1=l0,
-        source2=l1,
+        loc_from=l0,
+        loc_to=l1,
         obs_mask=1,
         distance=1
     )
     b = CompressedEdge(
-        source1=l1,
-        source2=l2,
+        loc_from=l1,
+        loc_to=l2,
         obs_mask=2,
         distance=10
     )
     c = CompressedEdge(
-        source1=l2,
-        source2=l3,
+        loc_from=l2,
+        loc_to=l3,
         obs_mask=4,
         distance=110
     )
     d = CompressedEdge(
-        source1=l3,
-        source2=l4,
+        loc_from=l3,
+        loc_to=l4,
         obs_mask=5,
         distance=1000
     )
-    assert a.merged_with(b) == CompressedEdge(source1=l0, source2=l2, obs_mask=3, distance=11)
-    assert a & b & c == CompressedEdge(source1=l0, source2=l3, obs_mask=7, distance=121)
-    assert b & c & d == CompressedEdge(source1=l1, source2=l4, obs_mask=3, distance=1120)
+    assert a.merged_with(b) == CompressedEdge(loc_from=l0, loc_to=l2, obs_mask=3, distance=11)
+    assert a & b & c == CompressedEdge(loc_from=l0, loc_to=l3, obs_mask=7, distance=121)
+    assert b & c & d == CompressedEdge(loc_from=l1, loc_to=l4, obs_mask=3, distance=1120)
 
 
 def test_merging_incompatible_compressed_edges_raises_value_error():
     a = CompressedEdge(
-        source1=l0,
-        source2=l1,
+        loc_from=l0,
+        loc_to=l1,
         obs_mask=1,
         distance=1
     )
     b = CompressedEdge(
-        source1=l2,
-        source2=l3,
+        loc_from=l2,
+        loc_to=l3,
         obs_mask=2,
         distance=10
     )
@@ -98,7 +98,7 @@ def compressed_edge_generator(graph: Graph):
     def make_edge(i: Optional[int], j: Optional[int], o: int, w: int):
         src1 = graph.nodes[i] if i is not None else None
         src2 = graph.nodes[j] if j is not None else None
-        return CompressedEdge(source1=src1, source2=src2, obs_mask=o, distance=w)
+        return CompressedEdge(loc_from=src1, loc_to=src2, obs_mask=o, distance=w)
     return make_edge
 
 
@@ -168,5 +168,5 @@ def test_edge_to_path_for_matching(d, noise, num_shots, seed):
             p = e.to_path()
             assert sum(x.distance for x in p) == e.distance
             m = join_edges(p)
-            assert m.source1 == e.source1
-            assert m.source2 == e.source2
+            assert m.loc_from == e.loc_from
+            assert m.loc_to == e.loc_to

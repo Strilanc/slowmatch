@@ -34,8 +34,8 @@ def alternating_tree_builder():
                 inner_region=GraphFillRegion(id=inner_id),
                 outer_region=GraphFillRegion(id=outer_id),
                 inner_outer_edge=CompressedEdge(
-                    source1=LocationData(loc=inner_id),
-                    source2=LocationData(loc=outer_id),
+                    loc_from=LocationData(loc=inner_id),
+                    loc_to=LocationData(loc=outer_id),
                     obs_mask=0,
                     distance=1
                 )
@@ -45,8 +45,8 @@ def alternating_tree_builder():
                 child=AltTreeEdge(
                     node=child,
                     edge=CompressedEdge(
-                        source1=LocationData(loc=node.outer_region.id),
-                        source2=LocationData(loc=child.inner_region.id),
+                        loc_from=LocationData(loc=node.outer_region.id),
+                        loc_to=LocationData(loc=child.inner_region.id),
                         obs_mask=0,
                         distance=1
                     )
@@ -207,8 +207,8 @@ def gen_blossom_edge_path(region_ids: List[int]) -> RegionPath:
         e = RegionEdge(
             region=GraphFillRegion(id=region_ids[i]),
             edge=CompressedEdge(
-                source1=LocationData(loc=region_ids[i]),
-                source2=LocationData(loc=region_ids[i+1]),
+                loc_from=LocationData(loc=region_ids[i]),
+                loc_to=LocationData(loc=region_ids[i+1]),
                 obs_mask=0,
                 distance=1
             )

@@ -22,7 +22,7 @@ class RegionEdge:
         return self._eq_values() == other._eq_values()
 
     def __str__(self) -> str:
-        return f"({self.region.id}, ({self.edge.source1.loc}, {self.edge.source2.loc}))"
+        return f"({self.region.id}, ({self.edge.loc_from.loc}, {self.edge.loc_to.loc}))"
 
 
 @dataclasses.dataclass

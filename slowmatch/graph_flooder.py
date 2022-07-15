@@ -267,8 +267,8 @@ class GraphFlooder(Generic[TLocation]):
                      + loc_data_1.distances[event.schedule_list_index_1])
         return RegionHitRegionEvent(region1=region1, region2=region2, time=self.time,
                                     edge=CompressedEdge(
-                                        source1=loc_data_1.reached_from_source,
-                                        source2=loc_data_2.reached_from_source,
+                                        loc_from=loc_data_1.reached_from_source,
+                                        loc_to=loc_data_2.reached_from_source,
                                         obs_mask=coll_obs_mask, distance=coll_dist)
                                     )
 
@@ -285,8 +285,8 @@ class GraphFlooder(Generic[TLocation]):
             time=self.time,
             region=region,
             edge=CompressedEdge(
-                source1=loc_data.reached_from_source,
-                source2=neighbour_loc,
+                loc_from=loc_data.reached_from_source,
+                loc_to=neighbour_loc,
                 obs_mask=obs_crossed_on_path,
                 distance=distance_along_path
             )
@@ -319,8 +319,8 @@ class GraphFlooder(Generic[TLocation]):
         for child in region.blossom_children:
             child.region.blossom_parent = None
 
-        in_parent_region = region.alt_tree_node.parent.edge.source1.top_region()
-        in_child_region = region.alt_tree_node.inner_outer_edge.source1.top_region()
+        in_parent_region = region.alt_tree_node.parent.edge.loc_from.top_region()
+        in_child_region = region.alt_tree_node.inner_outer_edge.loc_from.top_region()
         return BlossomImplodeEvent(
             time=self.time,
             blossom_region=region,
