@@ -81,13 +81,6 @@ class GraphFillRegion(Generic[TLocation]):
             for child in self.blossom_children:
                 yield from child.region.iter_all_sources()
 
-    def iter_all_regions(self) -> Iterator['GraphFillRegion']:
-        if self.blossom_children is not None and len(self.blossom_children) > 0:
-            for child in self.blossom_children:
-                yield from child.region.iter_all_regions()
-        else:
-            yield self.id
-
     def top_region(self) -> 'GraphFillRegion':
         cur_region = self
         while cur_region.blossom_parent is not None:

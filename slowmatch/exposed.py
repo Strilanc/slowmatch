@@ -31,26 +31,6 @@ def graph_from_neighbors_and_boundary(seed: complex, neighbors: Callable, bounda
     return g
 
 
-def graph_to_neighbours_and_boundary(graph: nx.Graph) -> Tuple[Callable, Callable, Callable]:
-    def neighbors(node):
-        for edge in graph.edges([node]):
-            opp = edge[1]
-            e = graph.get_edge_data(node, opp)
-            weight = e.get('weight', 1)
-            assert isinstance(weight, int)
-            observables = e.get('observables', int(0))
-            assert isinstance(observables, int)
-            yield weight, observables, opp
-
-    def num_neighbors(node):
-        return len(graph[node])
-
-    def boundary(node):
-        return graph.nodes[node].get('boundary', False) in [True, None]
-
-    return neighbors, boundary, num_neighbors
-
-
 def embedded_min_weight_match(graph: nx.Graph):
     detection_events = [n for n in graph.nodes if graph.nodes[n].get('detection', False) in [True, None]]
     matching = Matching(graph)
