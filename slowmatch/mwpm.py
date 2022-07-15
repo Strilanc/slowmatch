@@ -42,7 +42,7 @@ class Mwpm:
             if event.region1.matched_to_region() or event.region2.matched_to_region():
                 self.handle_tree_hitting_match(event)
             elif (
-                event.region1.matched_to_boundary() or event.region2.matched_to_boundary()
+                    event.region1.is_matched_to_boundary() or event.region2.is_matched_to_boundary()
             ):
                 self.handle_tree_hitting_boundary_match(event)
             elif event.region1.alt_tree_node.in_same_tree_as(event.region2.alt_tree_node):
@@ -161,10 +161,10 @@ class Mwpm:
         incoming = event.region1
         squished = event.region2
         match_edge = event.edge
-        if incoming.matched_to_boundary():
+        if incoming.is_matched_to_boundary():
             incoming, squished = squished, incoming
             match_edge = match_edge.reversed()
-        assert not incoming.matched_to_boundary()
+        assert not incoming.is_matched_to_boundary()
         node = incoming.alt_tree_node
         incoming.add_match(match=squished, edge=match_edge)
         # Shatter the alternating tree into matches.

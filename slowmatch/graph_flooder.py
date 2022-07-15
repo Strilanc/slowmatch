@@ -91,7 +91,7 @@ class GraphFlooder(Generic[TLocation]):
     def has_valid_events_queued(self) -> bool:
         return any(not e.is_invalidated for e in self._sorted_schedule)
 
-    def set_region_growth(self, region: GraphFillRegion, *, new_growth: int):
+    def set_region_growth(self, region: GraphFillRegion, *, new_growth: int) -> None:
         region.radius = region.radius.then_slope_at(time_of_change=self.time, new_slope=new_growth)
         self._reschedule_events_for_region(region)
 
@@ -141,7 +141,7 @@ class GraphFlooder(Generic[TLocation]):
 
     def _schedule_tentative_shrink_event(
             self, region: GraphFillRegion
-    ):
+    ) -> None:
         if not region.shell_area:
             time = region.radius.zero_intercept()  # Blossom implosion
         else:
@@ -152,7 +152,7 @@ class GraphFlooder(Generic[TLocation]):
         heapq.heappush(self._sorted_schedule, tentative_event)
         assert time >= self.time
 
-    def _reschedule_events_for_region(self, region: 'GraphFillRegion'):
+    def _reschedule_events_for_region(self, region: 'GraphFillRegion') -> None:
         region.invalidate_involved_schedule_items()
         if self.logger.enabled:
             self.logger.log_area_set(region.total_area_size())
@@ -164,7 +164,7 @@ class GraphFlooder(Generic[TLocation]):
             for location_data in region.iter_total_area():
                 self.reschedule_events_at_location(location_data=location_data)
 
-    def reschedule_events_at_location(self, *, location_data: 'LocationData'):
+    def reschedule_events_at_location(self, *, location_data: 'LocationData') -> None:
         location_data.invalidate_involved_schedule_items()
 
         rad1 = location_data.local_radius()

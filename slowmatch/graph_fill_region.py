@@ -55,7 +55,7 @@ class GraphFillRegion(Generic[TLocation]):
     def total_area_size(self) -> int:
         return len(self.shell_area) + sum(len(r.region.shell_area) for r in self.blossom_children)
 
-    def matched_to_boundary(self) -> bool:
+    def is_matched_to_boundary(self) -> bool:
         return self.match is not None and self.match.region is None
 
     def num_regions_above(self) -> int:
@@ -69,12 +69,7 @@ class GraphFillRegion(Generic[TLocation]):
     def matched_to_region(self) -> bool:
         return self.match is not None and self.match.region is not None
 
-    def arbitrary_rep(self) -> 'LocationData':
-        if self.source is not None:
-            return self.source
-        return self.blossom_children[0].region.arbitrary_rep()
-
-    def invalidate_involved_schedule_items(self):
+    def invalidate_involved_schedule_items(self) -> None:
         if self.shrink_event is not None:
             self.shrink_event.invalidate()
             self.shrink_event = None
