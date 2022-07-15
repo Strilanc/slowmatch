@@ -1,132 +1,178 @@
 import dataclasses
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, TYPE_CHECKING
+from slowmatch.graph_fill_region import GraphFillRegion
+from slowmatch.region_path import RegionPath, RegionEdge
+from slowmatch.compressed_edge import CompressedEdge
 
-
-@dataclasses.dataclass(eq=False)
-class InnerNode(object):
-    region_id: int
-    parent: Optional['OuterNode']
-    child: 'OuterNode'
-
-    def all_matches_in_tree(
-        self, *, out: Optional[List[Tuple[int, int]]] = None
-    ) -> List[Tuple[int, int]]:
-        if out is None:
-            out = []
-        out.append((self.region_id, self.child.region_id))
-        for c in self.child.children:
-            c.all_matches_in_tree(out=out)
-        return out
-
-    def __str__(self):
-        return f'{self.region_id} ===> {self.child}'
-
-    def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self.child == other.child
+if TYPE_CHECKING:
+    import pygame
 
 
 @dataclasses.dataclass
-class PruneResult:
-    orphans: List[InnerNode]  # Subtrees disconnected from the main tree by pruning the path.
-    pruned_path_regions: List[int]  # Inner-outer node pairs
+class AltTreeEdge:
+    node: 'AltTreeNode'
+    edge: 'CompressedEdge'
 
 
-class OuterNode:
-    def __init__(self, region_id: int):
-        self.region_id = region_id
-        self.parent: Optional['InnerNode'] = None
-        self.children: List[InnerNode] = []
+@dataclasses.dataclass
+class AltTreePruneResult:
+    orphans: List['AltTreeEdge']  # Subtrees disconnected from the main tree by pruning the path.
+    pruned_path_regions: 'RegionPath'  # Inner-outer node pairs
 
-    def _tree_eq_helper(self, other, *, backwards: Optional[InnerNode]):
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        if self.region_id != other.region_id:
-            return False
-        if (self.parent is None) != (other.parent is None):
-            return False
-        if self.parent is not backwards and self.parent is not None:
-            if self.parent.region_id != other.parent.region_id:
-                return False
-            if (self.parent.parent is None) != (other.parent.parent is None):
-                return False
-            if self.parent.parent is not None and not self.parent.parent._tree_eq_helper(
-                other.parent.parent, backwards=self.parent
-            ):
-                return False
-        if len(self.children) != len(other.children):
-            return False
-        for child, other_child in zip(self.children, other.children):
-            if child is not backwards:
-                if child.region_id != other_child.region_id:
-                    return False
-                if not child.child._tree_eq_helper(other_child.child, backwards=child):
-                    return False
-        return True
+
+@dataclasses.dataclass
+class AltTreeNode:
+    inner_region: Optional['GraphFillRegion']
+    outer_region: 'GraphFillRegion'
+    parent: Optional['AltTreeEdge'] = None
+    children: List['AltTreeEdge'] = dataclasses.field(default_factory=lambda: [])
+    inner_outer_edge: Optional[CompressedEdge] = None
+
+    def all_matches_in_tree(
+            self, *, out: Optional[List[Tuple['GraphFillRegion', 'GraphFillRegion']]] = None
+            ) -> List[Tuple['GraphFillRegion', 'GraphFillRegion']]:
+        if out is None:
+            out = []
+        out.append((self.inner_region, self.outer_region))
+        for c in self.children:
+            c.node.all_matches_in_tree(out=out)
+        return out
+
+    def shatter_into_matches(
+            self, *, out: Optional[List[Tuple['GraphFillRegion', 'GraphFillRegion']]] = None,
+            recursion_depth: int = 0
+            ) -> List['GraphFillRegion']:
+        if out is None:
+            out = []
+        if self.inner_region is not None:
+            self.parent = None
+            self.inner_region.add_match(
+                match=self.outer_region,
+                edge=self.inner_outer_edge
+            )
+            out.append(self.inner_region)
+        for c in self.children:
+            c.node.shatter_into_matches(out=out, recursion_depth=recursion_depth + 1)
+        self.children = []
+        return out
+
+    def as_tuple(self):
+        if self.inner_region is None:
+            this_node = ((None, None), (self.outer_region.id, None))
+        else:
+            this_node = ((self.inner_region.id, self.inner_outer_edge.source1.loc),
+                         (self.outer_region.id, self.inner_outer_edge.source2.loc))
+        return this_node, tuple(c.node.as_tuple() for c in self.children)
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return self._tree_eq_helper(other, backwards=None)
+        if self.inner_region != other.inner_region or self.outer_region != other.outer_region:
+            return False
+        return self.find_root().as_tuple() == other.find_root().as_tuple()
 
     def __ne__(self, other):
         return not self == other
 
-    def all_region_ids_in_tree(self, *, out: Optional[List[int]] = None) -> List[int]:
-        if out is None:
-            out = []
-        out.append(self.region_id)
-        for c in self.children:
-            out.append(c.region_id)
-            c.child.all_region_ids_in_tree(out=out)
-        return out
-
-    def outer_ancestry(self, *, stop_before: Optional['OuterNode'] = None) -> List['OuterNode']:
+    def outer_ancestry(self, *, stop_before: Optional['AltTreeNode'] = None) -> List['AltTreeNode']:
         if self is stop_before:
             return []
         result = [self]
         while True:
-            parent = result[-1].parent
-            if parent is None or parent.parent is stop_before:
+            current_node = result[-1]
+            if current_node.inner_region is None or current_node.parent.node is stop_before:
                 break
-            result.append(parent.parent)
+            result.append(current_node.parent.node)
         return result
 
     def become_root(self):
-        """Performs a tree rotation that makes the current node the root."""
-        if self.parent is None:
+        if self.inner_region is None:
+            assert self.parent is None
             return
-        old_parent = self.parent
-        old_grandparent = old_parent.parent
-
-        self.children.append(old_parent)
-        old_parent.child = old_grandparent
-        old_parent.parent = self
-        old_grandparent.children.remove(old_parent)
-        old_grandparent.become_root()
+        assert self.parent is not None
+        old_parent = self.parent.node
+        old_parent.become_root()
+        assert self.parent.node.inner_region is None
+        self.parent.node.inner_region = self.inner_region
+        self.parent.node.inner_outer_edge = self.parent.edge
+        self.inner_region = None
+        self.parent.node.children = [e for e in self.parent.node.children if e.node is not self]
         self.parent = None
-        old_grandparent.parent = old_parent
+        self.add_child(
+            AltTreeEdge(
+                node=old_parent,
+                edge=self.inner_outer_edge
+            )
+        )
 
-    def most_recent_common_ancestor(self, other: 'OuterNode') -> 'OuterNode':
+    def add_child(self, child: 'AltTreeEdge'):
+        self.children.append(child)
+        child.node.parent = AltTreeEdge(
+            node=self,
+            edge=child.edge.reversed()
+        )
+
+    def validate_parent_child(self):
+        for c in self.children:
+            assert c.node.parent.node == self
+            c.node.validate_parent_child()
+
+    def find_root(self) -> 'AltTreeNode':
+        current_node = self
+        while current_node.parent is not None:
+            current_node = current_node.parent.node
+        return current_node
+
+    def most_recent_common_ancestor(self, other: 'AltTreeNode') -> 'AltTreeNode':
         seen = set(id(e) for e in self.outer_ancestry())
         for ancestor in other.outer_ancestry():
             if id(ancestor) in seen:
                 return ancestor
-        raise ValueError(f'No common ancestor between {self.region_id} and {other.region_id}.')
+        raise ValueError(f'No common ancestor between ({self.inner_region},{self.outer_region}) '
+                         f'and ({self.inner_region},{self.outer_region}).')
+
+    def in_same_tree_as(self, other: 'AltTreeNode') -> bool:
+        return self.find_root() is other.find_root()
+
+    def __str__(self):
+        indent1 = '+---'
+        indent2 = '\n|   '
+        child_paragraphs = [
+            indent1 + indent2.join(str(c.node).rstrip().split('\n')) for c in self.children
+        ]
+        if self.inner_region is None:
+            result = f"{self.outer_region.id}"
+        else:
+            result = f"{self.inner_region.id} ===> {self.outer_region.id}"
+        if child_paragraphs:
+            result += '\n' + '\n'.join(child_paragraphs).rstrip()
+        return result
 
     def make_child_inner_outer(
-        self, *, inner_region_id: int, outer_region_id: int
-    ) -> Tuple['InnerNode', 'OuterNode']:
-        outer = OuterNode(region_id=outer_region_id)
-        inner = InnerNode(parent=self, child=outer, region_id=inner_region_id)
-        outer.parent = inner
-        self.children.append(inner)
-        return inner, outer
+            self,
+            *,
+            inner_graph_fill_region: 'GraphFillRegion',
+            outer_graph_fill_region: 'GraphFillRegion',
+            inner_outer_edge: CompressedEdge,
+            child_edge: CompressedEdge
+    ) -> 'AltTreeNode':
+        node = AltTreeNode(inner_region=inner_graph_fill_region,
+                           outer_region=outer_graph_fill_region,
+                           inner_outer_edge=inner_outer_edge
+                           )
+        inner_graph_fill_region.alt_tree_node = node
+        outer_graph_fill_region.alt_tree_node = node
+        self.add_child(
+            AltTreeEdge(
+                node=node,
+                edge=child_edge
+            )
+        )
+        return node
 
     def prune_upward_path_stopping_before(
-        self, prune_parent: Optional['OuterNode'] = None
-    ) -> PruneResult:
+        self, prune_parent: Optional['AltTreeNode'] = None
+    ) -> AltTreePruneResult:
         """Removes the path from `self` to just before `prune_parent` from the tree.
 
         Args:
@@ -142,27 +188,33 @@ class OuterNode:
         """
         orphans = []
         removed_regions = []
-        for outer in self.outer_ancestry(stop_before=prune_parent):
-            for child in outer.children:
+        for node in self.outer_ancestry(stop_before=prune_parent):
+            for child in node.children:
                 orphans.append(child)
-                child.parent = None
-            removed_regions.append(outer.region_id)
-            inner = outer.parent
-            if inner is not None:
-                inner.parent.children = [
-                    child for child in inner.parent.children if child is not inner
-                ]
-                inner.parent = None
-                removed_regions.append(inner.region_id)
-        return PruneResult(orphans=orphans, pruned_path_regions=removed_regions,)
+                child.node.parent = None
+            removed_regions.append(
+                RegionEdge(
+                    region=node.outer_region,
+                    edge=node.inner_outer_edge.reversed()
+                )
+            )
+            node.outer_region.alt_tree_node = None
+            if node.parent is not None:
+                assert node.inner_region is not None
+                removed_regions.append(
+                    RegionEdge(
+                        region=node.inner_region,
+                        edge=node.parent.edge
+                    )
+                )
+                node.parent.node.children = [c for c in node.parent.node.children if c.node is not node]
+                node.parent = None
+                node.inner_region.alt_tree_node = None
+        return AltTreePruneResult(orphans=orphans, pruned_path_regions=RegionPath(removed_regions))
 
-    def __str__(self):
-        indent1 = '+---'
-        indent2 = '\n|   '
-        child_paragraphs = [
-            indent1 + indent2.join(str(c).rstrip().split('\n')) for c in self.children
-        ]
-        result = str(self.region_id)
-        if child_paragraphs:
-            result += '\n' + '\n'.join(child_paragraphs).rstrip()
-        return result
+    def draw(self, screen: 'pygame.Surface', scale: float):
+        if self.inner_outer_edge is not None:
+            self.inner_outer_edge.draw(screen=screen, scale=scale, rgb=(80, 80, 80))
+        for child in self.children:
+            child.edge.draw(screen=screen, scale=scale, rgb=(150, 150, 150))
+            child.node.draw(screen=screen, scale=scale)

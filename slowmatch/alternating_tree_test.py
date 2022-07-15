@@ -1,25 +1,24 @@
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, List
 
 import cirq
 import pytest
 
-from slowmatch.alternating_tree import OuterNode, InnerNode
+from slowmatch.alternating_tree import AltTreeNode, AltTreeEdge
+from slowmatch.compressed_edge import CompressedEdge
+from slowmatch.graph import LocationData
+from slowmatch.graph_fill_region import GraphFillRegion
+from slowmatch.region_path import RegionPath, RegionEdge
 
 
 def alternating_tree_builder():
-    """Returns a handy method for creating alternating trees."""
     counter = 0
 
     def make_tree(
-        *children: InnerNode,
-        inner_id: Optional[int] = None,
-        outer_id: Optional[int] = None,
-        child: Optional[InnerNode] = None,
-        root: bool = False,
-    ) -> Union[OuterNode, InnerNode]:
-        if child is not None:
-            children = children + (child,)
-
+            *children: AltTreeNode,
+            inner_id: Optional[int] = None,
+            outer_id: Optional[int] = None,
+            root: bool = False
+    ) -> AltTreeNode:
         nonlocal counter
         if inner_id is None:
             inner_id = counter
@@ -28,31 +27,37 @@ def alternating_tree_builder():
             outer_id = counter
             counter += 1
 
-        outer = OuterNode(outer_id)
-        if not root:
-            outer.parent = InnerNode(inner_id, parent=None, child=outer)
-        outer.children = list(children)
+        if root:
+            node = AltTreeNode(inner_region=None, outer_region=GraphFillRegion(id=outer_id))
+        else:
+            node = AltTreeNode(
+                inner_region=GraphFillRegion(id=inner_id),
+                outer_region=GraphFillRegion(id=outer_id),
+                inner_outer_edge=CompressedEdge(
+                    source1=LocationData(loc=inner_id),
+                    source2=LocationData(loc=outer_id),
+                    obs_mask=0,
+                    distance=1
+                )
+            )
         for child in children:
-            child.parent = outer
-        return outer if root else outer.parent
+            node.add_child(
+                child=AltTreeEdge(
+                    node=child,
+                    edge=CompressedEdge(
+                        source1=LocationData(loc=node.outer_region.id),
+                        source2=LocationData(loc=child.inner_region.id),
+                        obs_mask=0,
+                        distance=1
+                    )
+                )
+            )
+        return node
 
     return make_tree
 
 
-def alternating_tree_map(
-    tree: OuterNode, *, out: Optional[Dict[int, Union[OuterNode, InnerNode]]] = None,
-) -> Dict[int, Union[OuterNode, InnerNode]]:
-    """Returns a dictionary mapping node region ids to nodes from the tree."""
-    if out is None:
-        out = {}
-    out[tree.region_id] = tree
-    for child in tree.children:
-        out[child.region_id] = child
-        alternating_tree_map(child.child, out=out)
-    return out
-
-
-def test_tree_str():
+def test_alt_tree_node_str():
     t = alternating_tree_builder()
     tree = t(t(t(), t(), t(),), t(), inner_id=200, outer_id=201,)
     assert (
@@ -67,8 +72,10 @@ def test_tree_str():
 """.strip()
     )
 
+    tree.inner_region = None
+
     assert (
-        str(tree.child)
+        str(tree)
         == """
 201
 +---6 ===> 7
@@ -80,7 +87,7 @@ def test_tree_str():
     )
 
     assert (
-        str(tree.child.children[0])
+        str(tree.children[0].node)
         == """
 6 ===> 7
 +---0 ===> 1
@@ -90,34 +97,43 @@ def test_tree_str():
     )
 
 
-def test_tree_equality():
+def test_find_root():
+    t = alternating_tree_builder()
+    tree = t(t(t(), t(), t(), ), t(), inner_id=200, outer_id=201, root=True)
+
+    assert tree.find_root() is tree
+    assert tree.children[0].node.children[0].node.find_root() is tree
+    assert tree.children[0].node.children[1].node.find_root() is tree
+    assert tree.children[1].node.find_root() is tree
+
+
+def test_alt_tree_node_equality():
     eq = cirq.testing.EqualsTester()
 
     t = alternating_tree_builder()
-    tree1 = t(t(t(), t(), t(),), t(),)
+    tree1 = t(t(t(), t(), t(),), t(), root=True)
 
     t = alternating_tree_builder()
-    tree2 = t(t(t(), t(), t(),), t(),)
+    tree2 = t(t(t(), t(), t(),), t(), root=True)
 
     t = alternating_tree_builder()
-    tree3 = t(t(t(), t(inner_id=100), t(),), t(),)
+    tree3 = t(t(t(), t(inner_id=100), t(),), t(), root=True)
 
     eq.add_equality_group(tree1, tree2)
-    eq.add_equality_group(tree1.child, tree2.child)
-    eq.add_equality_group(tree1.child.children[0], tree2.child.children[0])
-    eq.add_equality_group(tree1.child.children[1], tree2.child.children[1])
+    eq.add_equality_group(tree1.children[0].node, tree2.children[0].node)
+    eq.add_equality_group(tree1.children[1].node, tree2.children[1].node)
     eq.add_equality_group(tree3)
 
 
-def test_most_recent_common_ancestor():
+def test_alt_tree_most_recent_common_ancestor():
     t = alternating_tree_builder()
-    tree = t(t(t(), t(), t(t(),)), t(), root=True)
-    c0 = tree.children[0].child
-    c1 = tree.children[1].child
-    c00 = c0.children[0].child
-    c01 = c0.children[1].child
+    tree = t(t(t(), t(), t(t(), )), t(), root=True)
+    c0 = tree.children[0].node
+    c1 = tree.children[1].node
+    c00 = c0.children[0].node
+    c01 = c0.children[1].node
     assert tree.most_recent_common_ancestor(tree) is tree
-    assert tree.most_recent_common_ancestor(tree.children[0].child) is tree
+    assert tree.most_recent_common_ancestor(tree.children[0].node) is tree
     assert c0.most_recent_common_ancestor(c1) is tree
     assert c00.most_recent_common_ancestor(c1) is tree
     assert c00.most_recent_common_ancestor(tree) is tree
@@ -142,7 +158,7 @@ def test_become_root():
         outer_id=1,
         root=True,
     )
-    c = tree.children[0].child.children[2].child
+    c = tree.children[0].node.children[2].node
     c.become_root()
     assert c == t(
         t(inner_id=6, outer_id=7),
@@ -158,7 +174,7 @@ def test_become_root():
     )
 
 
-def test_outer_ancestry():
+def test_alt_tree_outer_ancestry():
     t = alternating_tree_builder()
     tree = t(
         t(
@@ -174,18 +190,34 @@ def test_outer_ancestry():
     )
     assert tree.outer_ancestry() == [tree]
     assert tree.outer_ancestry(stop_before=tree) == []
-    c0 = tree.children[0].child
+    c0 = tree.children[0].node
     assert c0.outer_ancestry() == [c0, tree]
     assert c0.outer_ancestry(stop_before=tree) == [c0]
     assert c0.outer_ancestry(stop_before=c0) == []
-    c00 = c0.children[0].child
+    c00 = c0.children[0].node
     assert c00.outer_ancestry() == [c00, c0, tree]
     assert c00.outer_ancestry(stop_before=tree) == [c00, c0]
     assert c00.outer_ancestry(stop_before=c0) == [c00]
     assert c00.outer_ancestry(stop_before=c00) == []
 
 
-def test_prune_upward_path_stopping_before():
+def gen_blossom_edge_path(region_ids: List[int]) -> RegionPath:
+    out_edges = []
+    for i in range(len(region_ids) - 1):
+        e = RegionEdge(
+            region=GraphFillRegion(id=region_ids[i]),
+            edge=CompressedEdge(
+                source1=LocationData(loc=region_ids[i]),
+                source2=LocationData(loc=region_ids[i+1]),
+                obs_mask=0,
+                distance=1
+            )
+        )
+        out_edges.append(e)
+    return RegionPath(out_edges)
+
+
+def test_alt_tree_prune_upward_path_stopping_before():
     t = alternating_tree_builder()
     tree = t(
         t(
@@ -200,18 +232,14 @@ def test_prune_upward_path_stopping_before():
         root=True,
     )
 
-    c0 = tree.children[0]
-    c02 = c0.child.children[2]
-    result = c02.child.prune_upward_path_stopping_before(tree)
+    c0 = tree.children[0].node
+    c02 = c0.children[2].node
+    result = c02.prune_upward_path_stopping_before(tree)
     assert tree == t(t(inner_id=2, outer_id=3), outer_id=1, root=True,)
     assert result.orphans == [
-        c02.child.children[0],
-        c0.child.children[0],
-        c0.child.children[1],
+        c02.children[0],
+        c0.children[0],
+        c0.children[1],
     ]
-    assert result.pruned_path_regions == [
-        13,
-        12,
-        5,
-        4,
-    ]
+
+    assert result.pruned_path_regions == gen_blossom_edge_path([13, 12, 5, 4, 1])

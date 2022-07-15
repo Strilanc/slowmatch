@@ -1,110 +1,104 @@
-from typing import TypeVar, List, Tuple, Dict, Union, Sequence, Any, Optional
+from typing import TypeVar, List, Tuple, TYPE_CHECKING, Iterator
+import pygame
 
-from slowmatch.alternating_tree import InnerNode, OuterNode
-from slowmatch.flooder import (
-    Flooder,
-    MwpmEvent,
-    RegionHitRegionEvent,
-    BlossomImplodeEvent,
-    RegionHitBoundaryEvent,
-)
+from slowmatch.alternating_tree import AltTreeNode, AltTreeEdge
+from slowmatch.graph_flooder import (GraphFlooder)
+from slowmatch.graph import LocationData
+from slowmatch.graph_fill_region import Match, GraphFillRegion
+from slowmatch.events import (MwpmEvent, RegionHitRegionEvent,
+                              BlossomImplodeEvent, RegionHitBoundaryEvent)
+from slowmatch.region_path import RegionPath, RegionEdge
+from slowmatch.compressed_edge import CompressedEdge
+
+
+if TYPE_CHECKING:
+    import pygame
+
+TLocation = TypeVar('TLocation')
 
 
 class Mwpm:
     """The internal state of an embedded minimum weight perfect matching algorithm."""
 
-    def __init__(self, flooder: Flooder):
-        self.fill_system: Flooder = flooder
-        self.tree_id_map: Dict[int, Union[InnerNode, OuterNode]] = {}
-        self.match_map: Dict[int, int] = {}
-        self.boundary_match_map: Dict[int, Any] = {}
-        self.blossom_map: Dict[int, List[int]] = {}
+    def __init__(self, flooder: GraphFlooder):
+        self.fill_system: GraphFlooder = flooder
+        self.detection_events: List[LocationData] = []
+        self.match_edges: List['CompressedEdge'] = []
 
-    def add_region(self, region_id: int):
-        self.tree_id_map[region_id] = OuterNode(region_id=region_id)
+    def add_region(self, region: 'GraphFillRegion'):
+        outer_node = AltTreeNode(inner_region=None, outer_region=region)
+        region.alt_tree_node = outer_node
 
-    def _region_tree_root(self, region_id: int) -> OuterNode:
-        return self.tree_id_map[region_id].outer_ancestry()[-1]
-
-    def _in_same_tree(self, region_id_1: int, region_id_2: int) -> bool:
-        a = self._region_tree_root(region_id_1)
-        b = self._region_tree_root(region_id_2)
-        return a == b
+    def add_detection_event(self, node_id: TLocation):
+        location_data = self.fill_system.graph.nodes[node_id]
+        region = self.fill_system.create_region(node_id)
+        self.add_region(region)
+        self.detection_events.append(location_data)
 
     def process_event(self, event: MwpmEvent):
         if isinstance(event, BlossomImplodeEvent):
             self.handle_blossom_imploding(event)
         elif isinstance(event, RegionHitRegionEvent):
-            if event.region1 in self.match_map or event.region2 in self.match_map:
+            if event.region1.matched_to_region() or event.region2.matched_to_region():
                 self.handle_tree_hitting_match(event)
             elif (
-                event.region1 in self.boundary_match_map or event.region2 in self.boundary_match_map
+                event.region1.matched_to_boundary() or event.region2.matched_to_boundary()
             ):
-                self.handle_tree_hitting_boundary_or_boundary_match(event)
-            elif self._in_same_tree(event.region1, event.region2):
+                self.handle_tree_hitting_boundary_match(event)
+            elif event.region1.alt_tree_node.in_same_tree_as(event.region2.alt_tree_node):
                 self.handle_tree_hitting_self(event)
             else:
                 self.handle_tree_hitting_other_tree(event)
         elif isinstance(event, RegionHitBoundaryEvent):
-            self.handle_tree_hitting_boundary_or_boundary_match(event)
+            self.handle_tree_hitting_boundary(event)
         else:
             raise NotImplementedError(f'Unrecognized event type "{type(event)}": {event!r}')
 
     def handle_blossom_imploding(self, event: BlossomImplodeEvent):
-        blossom = self.tree_id_map[event.blossom_region_id]
-        assert isinstance(blossom, InnerNode)
-        del self.tree_id_map[blossom.region_id]
+        blossom_io_node = event.blossom_region.alt_tree_node
+        assert blossom_io_node.inner_region is event.blossom_region
+        event.blossom_region.alt_tree_node = None
 
-        # Find the ids of the inner regions touching the outer parent and child.
-        out_child_id = blossom.child.region_id
-        out_parent_id = blossom.parent.region_id
-        in_child_id = -1
-        in_parent_id = -1
-        for in_id, out_id in event.in_out_touch_pairs:
-            if out_id == out_child_id:
-                in_child_id = in_id
-            if out_id == out_parent_id:
-                in_parent_id = in_id
-        assert in_child_id != -1
-        assert in_parent_id != -1
+        # Find the inner regions touching the outer parent and child.
+        in_parent_region = event.in_parent_region
+        in_child_region = event.in_child_region
 
         # Find even and odd length paths from parent to child.
-        inner_region_ids = self.blossom_map[event.blossom_region_id]
-        evens, odds = cycle_split(
-            inner_region_ids,
-            inner_region_ids.index(in_parent_id),
-            inner_region_ids.index(in_child_id),
-        )
-        odds = odds[::-1]
-        if len(odds) % 2 == 0:
-            odds, evens = evens, odds
+        inner_regions = event.blossom_region.blossom_children
+        odds, matches = inner_regions.split_between_regions(start_region=in_parent_region, end_region=in_child_region)
 
         # The even length path becomes matches.
-        matches = evens[1:-1]
-        for k in range(0, len(matches), 2):
-            a = matches[k]
-            b = matches[k + 1]
-            self.match_map[a] = b
-            self.match_map[b] = a
+        # Set region growth to zero for newly matched regions to ensure they are rescheduled
+        for match_region in matches.pairs_matched():
+            self.fill_system.set_region_growth(match_region, new_growth=0)
+            self.fill_system.set_region_growth(match_region.match.region, new_growth=0)
 
         # The odd length path is inserted into the alternating tree.
-        ancestor: OuterNode = self.tree_id_map[out_parent_id]
-        descendent: OuterNode = self.tree_id_map[out_child_id]
-        ancestor.children = [e for e in ancestor.children if e is not blossom]
-        cur_outer = ancestor
+        ancestor = blossom_io_node.parent.node
+        ancestor.children = [e for e in ancestor.children if e.node is not blossom_io_node]
+        cur_alt_tree_node = ancestor
+        child_edge = blossom_io_node.parent.edge.reversed()
         for k in range(0, len(odds) - 1, 2):
-            cur_inner, cur_outer = cur_outer.make_child_inner_outer(
-                inner_region_id=odds[k], outer_region_id=odds[k + 1]
+            cur_alt_tree_node = cur_alt_tree_node.make_child_inner_outer(
+                inner_graph_fill_region=odds[k].region,
+                outer_graph_fill_region=odds[k + 1].region,
+                inner_outer_edge=odds[k].edge,
+                child_edge=child_edge
             )
-            self.tree_id_map[cur_inner.region_id] = cur_inner
-            self.tree_id_map[cur_outer.region_id] = cur_outer
-            self.fill_system.set_region_growth(cur_inner.region_id, new_growth=-1)
-            self.fill_system.set_region_growth(cur_outer.region_id, new_growth=+1)
-        cur_inner = InnerNode(region_id=odds[-1], parent=cur_outer, child=descendent)
-        self.fill_system.set_region_growth(cur_inner.region_id, new_growth=-1)
-        self.tree_id_map[cur_inner.region_id] = cur_inner
-        cur_outer.children.append(cur_inner)
-        descendent.parent = cur_inner
+            child_edge = odds[k + 1].edge
+            self.fill_system.set_region_growth(cur_alt_tree_node.inner_region, new_growth=-1)
+            self.fill_system.set_region_growth(cur_alt_tree_node.outer_region, new_growth=+1)
+
+        blossom_io_node.inner_region = odds[-1].region
+        odds[-1].region.alt_tree_node = blossom_io_node
+        blossom_io_node.parent = None
+        cur_alt_tree_node.add_child(
+            child=AltTreeEdge(
+                node=blossom_io_node,
+                edge=child_edge
+            )
+        )
+        self.fill_system.set_region_growth(blossom_io_node.inner_region, new_growth=-1)
 
     def handle_tree_hitting_match(self, event: RegionHitRegionEvent):
         """An outer node from an alternating tree hit a matched node from a match.
@@ -114,60 +108,69 @@ class Mwpm:
         Args:
             event: Event data including the two regions that are colliding.
         """
-        if event.region1 in self.tree_id_map:
-            node = self.tree_id_map[event.region1]
+        if event.region2.match is not None:
+            node = event.region1.alt_tree_node
             match = event.region2
+            child_edge = event.edge
         else:
-            node = self.tree_id_map[event.region2]
+            node = event.region2.alt_tree_node
             match = event.region1
-        other_match = self.match_map[match]
-        del self.match_map[match]
-        del self.match_map[other_match]
-        self.fill_system.set_region_growth(match, new_growth=-1)
-        self.fill_system.set_region_growth(other_match, new_growth=+1)
-        inner, outer = node.make_child_inner_outer(
-            outer_region_id=other_match, inner_region_id=match
+            child_edge = event.edge.reversed()
+        other_match = match.match
+        node.make_child_inner_outer(
+            inner_graph_fill_region=match,
+            outer_graph_fill_region=other_match.region,
+            inner_outer_edge=match.match.edge,
+            child_edge=child_edge
         )
-        self.tree_id_map[match] = inner
-        self.tree_id_map[other_match] = outer
+        match.match = None
+        other_match.region.match = None
+        self.fill_system.set_region_growth(match, new_growth=-1)
+        self.fill_system.set_region_growth(other_match.region, new_growth=+1)
 
-    def handle_tree_hitting_boundary_or_boundary_match(
-        self, event: Union[RegionHitBoundaryEvent, RegionHitRegionEvent]
+    def _shatter_descendants_into_matches_and_freeze(self, node: AltTreeNode):
+        for matched_region in node.shatter_into_matches():
+            self.fill_system.set_region_growth(matched_region, new_growth=0)
+            self.fill_system.set_region_growth(matched_region.match.region, new_growth=0)
+        node.children = []
+
+    def handle_tree_hitting_boundary(
+            self, event: RegionHitBoundaryEvent
     ):
-        """An outer node from an alternating tree hit a boundary or a node matched to a boundary.
-
-        This shatters the node's tree, and matches the incoming node to the point of contact.
-
-        Args:
-            event: Event data including the region that is colliding.
         """
-        if isinstance(event, RegionHitBoundaryEvent):
-            # Match to boundary.
-            node: OuterNode = self.tree_id_map[event.region]
-            self.boundary_match_map[event.region] = event.boundary
-        else:
-            # Match to boundary associate.
-            incoming = event.region1
-            squished = event.region2
-            if incoming in self.boundary_match_map:
-                incoming, squished = squished, incoming
-            assert squished in self.boundary_match_map
-            node: OuterNode = self.tree_id_map[incoming]
-            del self.boundary_match_map[squished]
-            self.match_map[incoming] = squished
-            self.match_map[squished] = incoming
+        An outer node from an alternating tree hit a boundary, shattering the node's tree, and
+        matching the node to the boundary
+        """
+        # Match to boundary.
+        node = event.region.alt_tree_node
+        assert node.outer_region is event.region
+        event.region.match = Match(
+            region=None,
+            edge=event.edge
+        )
+        event.region.alt_tree_node = None
 
         # Shatter the alternating tree into matches.
-        self.fill_system.set_region_growth(node.region_id, new_growth=0)
+        self.fill_system.set_region_growth(node.outer_region, new_growth=0)
         node.become_root()
-        for k in node.all_region_ids_in_tree():
-            del self.tree_id_map[k]
-        for child in node.children:
-            for a, b in child.all_matches_in_tree():
-                self.match_map[a] = b
-                self.match_map[b] = a
-                self.fill_system.set_region_growth(a, new_growth=0)
-                self.fill_system.set_region_growth(b, new_growth=0)
+        self._shatter_descendants_into_matches_and_freeze(node)
+
+    def handle_tree_hitting_boundary_match(
+            self, event: RegionHitRegionEvent
+    ):
+        incoming = event.region1
+        squished = event.region2
+        match_edge = event.edge
+        if incoming.matched_to_boundary():
+            incoming, squished = squished, incoming
+            match_edge = match_edge.reversed()
+        assert not incoming.matched_to_boundary()
+        node = incoming.alt_tree_node
+        incoming.add_match(match=squished, edge=match_edge)
+        # Shatter the alternating tree into matches.
+        self.fill_system.set_region_growth(node.outer_region, new_growth=0)
+        node.become_root()
+        self._shatter_descendants_into_matches_and_freeze(node)
 
     def handle_tree_hitting_self(self, event: RegionHitRegionEvent):
         """Two outer nodes from an alternating tree have hit each other.
@@ -178,41 +181,44 @@ class Mwpm:
         Args:
             event: Event data including the two regions that are colliding.
         """
-        region1 = self.tree_id_map[event.region1]
-        region2 = self.tree_id_map[event.region2]
+        region1 = event.region1.alt_tree_node
+        region2 = event.region2.alt_tree_node
 
         # Remove the path from the two nodes to their common ancestor from the tree.
         common_ancestor = region1.most_recent_common_ancestor(region2)
         p1 = region1.prune_upward_path_stopping_before(common_ancestor)
         p2 = region2.prune_upward_path_stopping_before(common_ancestor)
+        common_ancestor_children = common_ancestor.children
+        for child in common_ancestor_children:
+            child.node.parent = None
+        common_ancestor.children = []
 
         # Determine what to add back into the tree.
-        orphans: List[InnerNode] = [
-            *common_ancestor.children,
+        orphans: List[AltTreeEdge] = [
+            *common_ancestor_children,
             *p1.orphans,
             *p2.orphans,
         ]
-        blossom_region_id_cycle = [
-            *p1.pruned_path_regions,  # Travel up one path.
-            common_ancestor.region_id,  # Switch directions where they meet.
-            *p2.pruned_path_regions[::-1],  # Travel down the other path.
-        ]
-        blossom_id = self.fill_system.create_blossom(blossom_region_id_cycle)
+        region1_to_region2 = RegionEdge(
+                region=event.region1,
+                edge=event.edge
+            )
+        common_ancestor_edge = RegionEdge(
+                region=common_ancestor.outer_region,
+                edge=None
+            )
+        region1_to_ancestor_via_region2 = RegionPath(
+            edges=[region1_to_region2] + p2.pruned_path_regions.edges + [common_ancestor_edge]
+        )
+
+        blossom_region_cycle = p1.pruned_path_regions + region1_to_ancestor_via_region2.reversed()[:-1]
+        blossom = self.fill_system.create_blossom(blossom_region_cycle)
 
         # Update the tree structure.
-        blossom_node = OuterNode(region_id=blossom_id)
-        blossom_node.children = orphans
+        common_ancestor.outer_region = blossom
+        blossom.alt_tree_node = common_ancestor
         for orphan in orphans:
-            orphan.parent = blossom_node
-        blossom_node.parent = common_ancestor.parent
-        if common_ancestor.parent is not None:
-            common_ancestor.parent.child = blossom_node
-
-        # Update the dictionaries.
-        for e in blossom_region_id_cycle:
-            del self.tree_id_map[e]
-        self.blossom_map[blossom_id] = blossom_region_id_cycle
-        self.tree_id_map[blossom_id] = blossom_node
+            common_ancestor.add_child(child=orphan)
 
     def handle_tree_hitting_other_tree(self, event: RegionHitRegionEvent):
         """Two outer nodes, from different alternating trees, have hit each other.
@@ -223,46 +229,111 @@ class Mwpm:
         Args:
             event: Event data including the two regions that are colliding.
         """
-        region1 = self.tree_id_map[event.region1]
-        region2 = self.tree_id_map[event.region2]
+        region1 = event.region1.alt_tree_node
+        region2 = event.region2.alt_tree_node
+
+        assert not region1.in_same_tree_as(region2)
 
         region1.become_root()
         region2.become_root()
-        matches = [(region1.region_id, region2.region_id)]
+
+        event.region1.add_match(
+            match=event.region2,
+            edge=event.edge
+        )
+        self.fill_system.set_region_growth(event.region1, new_growth=0)
+        self.fill_system.set_region_growth(event.region2, new_growth=0)
+
         for r in [region1, region2]:
-            for c in r.children:
-                c.all_matches_in_tree(out=matches)
-            for k in r.all_region_ids_in_tree():
-                del self.tree_id_map[k]
+            self._shatter_descendants_into_matches_and_freeze(r)
 
-        for a, b in matches:
-            self.match_map[a] = b
-            self.match_map[b] = a
-            self.fill_system.set_region_growth(a, new_growth=0)
-            self.fill_system.set_region_growth(b, new_growth=0)
+    def extract_matching_and_reset_graph(self) -> Tuple[List['CompressedEdge'], int, int]:
+        match_list = []
+        total_weight = 0
+        obs_mask = 0
+        for d in self.detection_events:
+            r = d.top_region()
+            if r is not None:
+                assert r.match is not None
+                for m in r.to_subblossom_matches():
+                    match_list.append(m.match.edge)
+                    obs_mask ^= m.match.edge.obs_mask
+                    total_weight += m.match.edge.distance
+        return match_list, total_weight, obs_mask
 
+    def shatter_and_match(self, max_depth: int = 1):
+        """
+        Shatter into matches, even if the algorithm hasn't terminated, for use in the demo. When this
+        is used before the algorithm terminates, the final matching will not be minimum weight.
+        """
+        matches = []
+        seen = set()
+        depth = None if self.fill_system.has_valid_events_queued() else max_depth
+        for r in list(self.iter_all_top_level_regions()):
+            if r.match is not None and r.match.edge.source1.loc not in seen:
+                seen.add(r.match.edge.source1.loc)
+                area = list(r.iter_total_area())
+                if r.match.region is not None:
+                    seen.add(r.match.edge.source2.loc)
+                    area += list(r.match.region.iter_total_area())
+                for a in area:
+                    a.invalidate_involved_schedule_items()
+                for m in r.to_subblossom_matches(max_depth=depth):
+                    if not m.blossom_parent and (m.match.region is None or not m.match.region.blossom_parent):
+                        matches.append(m.match.edge)
+                for a in area:
+                    self.fill_system.reschedule_events_at_location(location_data=a)
 
-T = TypeVar('T')
+        self.match_edges.extend(matches)
 
+    def reset(self):
+        self.detection_events = []
+        self.fill_system.reset()
 
-def cycle_split(items: Sequence[T], i: int, j: int) -> Tuple[List[T], List[T]]:
-    """Splits a cyclical list into two parts terminating at the given boundaries.
+    def iter_all_top_level_regions(self) -> Iterator[GraphFillRegion]:
+        seen = set()
+        for d in self.detection_events:
+            r = d.top_region()
+            if r is not None and r.id not in seen:
+                yield r
 
-    Each part includes both boundaries.
+    def draw_areas(self, *, screen: 'pygame.Surface', scale: float):
+        for r in self.iter_all_top_level_regions():
+            r.draw_area(screen=screen, scale=scale, time=self.fill_system.time)
 
-    Args:
-        items: The cyclical list of items to split.
-        i: Index of the first boundary.
-        j: Index of the second boundary.
+    def draw_region_explored_edges(self, *, screen: 'pygame.Surface', scale: float):
+        for r in self.iter_all_top_level_regions():
+            r.draw_internal_graph_edges(screen=screen, scale=scale, time=self.fill_system.time)
 
-    Returns:
-        A tuple containing the i-to-j part then the j-to-i part. When the two indices are equal,
-        the i-to-j part is a singleton while the j-to-i part has length n+1.
-    """
-    n = len(items)
-    i %= n
-    j %= n
-    items = list(items) * 2
-    result1 = items[i : j + 1 + (n if j < i else 0)]
-    result2 = items[j : i + 1 + (n if i <= j else 0)]
-    return result1, result2
+    def draw_match_edges(self, *, screen: 'pygame.Surface', scale: float):
+        matched = set()
+        for d in self.detection_events:
+            r = d.top_region()
+            if r is not None and r.match is not None and r.id not in matched:
+                matched.add(r.id)
+                if r.match.region is not None:
+                    matched.add(r.match.region.id)
+                r.match.edge.draw_path(screen=screen, scale=scale, rgb=(0, 0, 0), width=5)
+
+    def draw_internal_blossom_edges(self, *, screen: 'pygame.Surface', scale: float):
+        seen = set()
+        for r in self.iter_all_top_level_regions():
+            seen.add(r.id)
+            r.draw_blossom_cycle_edges(screen=screen, scale=scale)
+
+    def draw_alternating_tree_edges(self, *, screen: 'pygame.Surface', scale: float):
+        seen_outer_roots = set()
+        for r in self.iter_all_top_level_regions():
+            if r.alt_tree_node is not None:
+                root = r.alt_tree_node.find_root()
+                if root.outer_region.id not in seen_outer_roots:
+                    seen_outer_roots.add(root.outer_region.id)
+                    root.draw(screen=screen, scale=scale)
+
+    def draw_detection_events(self, *, screen: 'pygame.Surface', scale: float):
+        for e in self.detection_events:
+            e.draw(screen=screen, scale=scale)
+
+    def draw_final_matches(self, *, screen: 'pygame.Surface', scale: float):
+        for e in self.match_edges:
+            e.draw_path(screen=screen, scale=scale, rgb=(0, 0, 0), width=5)
