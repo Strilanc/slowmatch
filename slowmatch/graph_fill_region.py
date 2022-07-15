@@ -183,7 +183,11 @@ class GraphFillRegion(Generic[TLocation]):
         out.extend(m for m in this_region.to_subblossom_matches())
         return out
 
-    def draw_area(self, screen: 'pygame.Surface', scale: float, time: float) -> None:
+    def draw_area(self,
+                  screen: 'pygame.Surface',
+                  scale: float,
+                  time: float,
+                  tint: Tuple[float, float, float]) -> None:
         import pygame
 
         recursive_depth = self.num_regions_above()
@@ -195,6 +199,7 @@ class GraphFillRegion(Generic[TLocation]):
             color = (255, 0, 0)
         else:
             color = (255, 255, 0)
+        color = tuple(a*0.7 + b*0.3 for a, b in zip(color, tint))
         color = tuple(int(darken*c) for c in color)
 
         for src in self.iter_all_sources():
@@ -206,7 +211,7 @@ class GraphFillRegion(Generic[TLocation]):
                 pygame.draw.polygon(surface=screen, color=color, points=poly, width=0)
 
         for child in self.blossom_children:
-            child.region.draw_area(screen=screen, scale=scale, time=time)
+            child.region.draw_area(screen=screen, scale=scale, time=time, tint=tint)
 
     def draw_internal_graph_edges(self, screen: 'pygame.Surface', scale: float, time: float) -> None:
         import pygame

@@ -7,7 +7,7 @@ import cirq
 class Varying:
     """A value that is varying linearly over time."""
 
-    T: 'Varying'
+    T: 'Varying'  # The line y(t) = 1*t + 0
 
     def __init__(
         self,

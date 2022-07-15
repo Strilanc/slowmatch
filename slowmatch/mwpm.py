@@ -1,5 +1,5 @@
+import math
 from typing import TypeVar, List, Tuple, TYPE_CHECKING, Iterator
-import pygame
 
 from slowmatch.alternating_tree import AltTreeNode, AltTreeEdge
 from slowmatch.graph_flooder import (GraphFlooder)
@@ -298,8 +298,12 @@ class Mwpm:
                 yield r
 
     def draw_areas(self, *, screen: 'pygame.Surface', scale: float):
-        for r in self.iter_all_top_level_regions():
-            r.draw_area(screen=screen, scale=scale, time=self.fill_system.time)
+        for k, r in enumerate(self.iter_all_top_level_regions()):
+            tint = (int(127 * math.sin(k / 10) + 127),
+                    int(127 * math.sin(6 + k / 5) + 127),
+                    int(127 * math.sin(1 + k / 3) + 127),
+                    )
+            r.draw_area(screen=screen, scale=scale, time=self.fill_system.time, tint=tint)
 
     def draw_region_explored_edges(self, *, screen: 'pygame.Surface', scale: float):
         for r in self.iter_all_top_level_regions():

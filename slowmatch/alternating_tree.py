@@ -1,5 +1,5 @@
 import dataclasses
-from typing import List, Tuple, Optional, TYPE_CHECKING
+from typing import List, Tuple, Optional, TYPE_CHECKING, Any
 from slowmatch.graph_fill_region import GraphFillRegion
 from slowmatch.region_path import RegionPath, RegionEdge
 from slowmatch.compressed_edge import CompressedEdge
@@ -56,7 +56,13 @@ class AltTreeNode:
         self.children = []
         return out
 
-    def as_tuple(self):
+    def as_tuple(self) -> Tuple[
+        Tuple[
+            Tuple[Optional[int], Optional[int]],
+            Tuple[Optional[int], Optional[int]],
+        ],
+        Tuple[Any, ...],
+    ]:
         if self.inner_region is None:
             this_node = ((None, None), (self.outer_region.id, None))
         else:
@@ -64,14 +70,14 @@ class AltTreeNode:
                          (self.outer_region.id, self.inner_outer_edge.source2.loc))
         return this_node, tuple(c.node.as_tuple() for c in self.children)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, type(self)):
             return NotImplemented
         if self.inner_region != other.inner_region or self.outer_region != other.outer_region:
             return False
         return self.find_root().as_tuple() == other.find_root().as_tuple()
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self == other
 
     def outer_ancestry(self, *, stop_before: Optional['AltTreeNode'] = None) -> List['AltTreeNode']:
@@ -85,7 +91,7 @@ class AltTreeNode:
             result.append(current_node.parent.node)
         return result
 
-    def become_root(self):
+    def become_root(self) -> None:
         if self.inner_region is None:
             assert self.parent is None
             return
@@ -105,14 +111,14 @@ class AltTreeNode:
             )
         )
 
-    def add_child(self, child: 'AltTreeEdge'):
+    def add_child(self, child: 'AltTreeEdge') -> None:
         self.children.append(child)
         child.node.parent = AltTreeEdge(
             node=self,
             edge=child.edge.reversed()
         )
 
-    def validate_parent_child(self):
+    def validate_parent_child(self) -> None:
         for c in self.children:
             assert c.node.parent.node == self
             c.node.validate_parent_child()
@@ -134,7 +140,7 @@ class AltTreeNode:
     def in_same_tree_as(self, other: 'AltTreeNode') -> bool:
         return self.find_root() is other.find_root()
 
-    def __str__(self):
+    def __str__(self) -> str:
         indent1 = '+---'
         indent2 = '\n|   '
         child_paragraphs = [
@@ -212,7 +218,7 @@ class AltTreeNode:
                 node.inner_region.alt_tree_node = None
         return AltTreePruneResult(orphans=orphans, pruned_path_regions=RegionPath(removed_regions))
 
-    def draw(self, screen: 'pygame.Surface', scale: float):
+    def draw(self, screen: 'pygame.Surface', scale: float) -> None:
         if self.inner_outer_edge is not None:
             self.inner_outer_edge.draw(screen=screen, scale=scale, rgb=(80, 80, 80))
         for child in self.children:

@@ -1,3 +1,4 @@
+import cmath
 from typing import Iterable, List, TYPE_CHECKING, Dict
 
 import math
@@ -8,38 +9,29 @@ if TYPE_CHECKING:
     from slowmatch.graph import LocationData
 
 
-def ccw(p1: complex, p2: complex, p3: complex):
-    """
-    Determines whether the points p1->p2->p3 make a left turn.
-    Returns positive if they make a left turn, negative if they make
-    a right turn, or zero if they are colinear.
-    """
-    return (p2.real - p1.real) * (p3.imag - p1.imag) - (p2.imag - p1.imag) * (p3.real - p1.real)
-
-
-def presort_for_graham_scan(points: Iterable[complex]) -> List[complex]:
-    points = set(points)
-    p0 = min(points, key=lambda x: (x.imag, x.real))
-    points.remove(p0)
-    points = sorted(points, key=lambda x: -(x - p0).real / abs(x - p0))
-    return [p0] + points
+def is_left_turn(p1: complex, p2: complex, p3: complex) -> bool:
+    """Determines whether the points p1->p2->p3 make a left turn."""
+    p2 -= p1
+    p3 -= p1
+    return (p2.conjugate() * p3).imag <= 0
 
 
 def graham_scan(points: Iterable[complex]) -> List[complex]:
     """
     Find the convex hull of the points
     """
-    points = presort_for_graham_scan(points)
+    points = set(points)
+    if len(points) <= 2:
+        return list(points)
+    center = sum(points) / len(points)
+    points = sorted(points, key=lambda x: cmath.phase(x - center))
+
     stack = []
     for p in points:
-        while len(stack) > 1 and ccw(stack[-2], stack[-1], p) <= 0:
+        while len(stack) > 1 and is_left_turn(stack[-2], stack[-1], p):
             stack.pop()
         stack.append(p)
     return stack
-
-
-def sort_counter_clockwise_around_source(points: Iterable[complex], source: complex) -> List[complex]:
-    return sorted(points, key=lambda x: math.atan2((x-source).imag, (x-source).real))
 
 
 def get_unit_radius_polygon_around_node(source: 'LocationData') -> List[complex]:

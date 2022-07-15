@@ -88,7 +88,7 @@ class CompressedEdge:
             self.distance == other.distance
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"(source1={self.source1}, source2={self.source2}, obs_mask={self.obs_mask}, distance={self.distance})"
 
     def to_path(self) -> List['CompressedEdge']:
@@ -161,6 +161,6 @@ class CompressedEdge:
                 width=width,
             )
 
-    def draw_path(self, screen: 'pygame.Surface', scale: float, rgb: Tuple[int, int, int], width: int = 4):
+    def draw_path(self, screen: 'pygame.Surface', scale: float, rgb: Tuple[int, int, int], width: int = 4) -> None:
         for edge in self.to_path():
             edge.draw(screen=screen, scale=scale, rgb=rgb, width=width)

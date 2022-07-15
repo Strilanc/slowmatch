@@ -5,7 +5,7 @@ import time
 import traceback
 from typing import List, Tuple, Set, Optional, Iterator, Dict, Callable
 
-import pygame
+import contextlib
 
 from slowmatch.graph_fill_region import GraphFillRegion
 from slowmatch.graph_flooder import GraphFlooder
@@ -14,12 +14,15 @@ from slowmatch.exposed import graph_from_neighbors_and_boundary
 from slowmatch.geometry import voronoi_from_points
 from slowmatch.graph import LocationData
 
+with contextlib.redirect_stdout(None):
+    import pygame
+
 
 def complex_grid_neighbors(pos: complex) -> List[Tuple[int, int, complex]]:
     w1 = 141
     w2 = 100
     return [
-        # (w1, 0, pos - 1j - 1),
+        (w1, 0, pos - 1j - 1),
         # (w1, 0, pos + 1j + 1),
         # (w1, 0, pos + 1j - 1),
         # (w1, 0, pos - 1j + 1),
@@ -64,7 +67,7 @@ class Demo:
         self.num_nodes = sum(1 for n in self.mwpm.fill_system.graph.nodes.values()
                              if not self.complex_grid_boundary(n.loc))
         self.num_points_per_unit_distance = 40  # For voronoi diagram
-        self.voronoi_regions = voronoi_from_points([l for _, _, l in self.points_on_graph()])
+        self.voronoi_regions: Optional[Dict[complex, List[complex]]] = None
         self.point_to_blossom_depth: Dict[complex, (int, int)] = {}
         self.area_visualisation = area_visualisation
 
@@ -122,6 +125,8 @@ class Demo:
                 yield node, i, round(pt.real, 8) + round(pt.imag, 8) * 1j
 
     def draw_voronoi(self, screen: pygame.Surface):
+        if self.voronoi_regions is None:
+            self.voronoi_regions = voronoi_from_points([l for _, _, l in self.points_on_graph()])
         self.point_to_blossom_depth = {}
         self.map_all_locations_to_blossom_depth()
         for loc, val in self.point_to_blossom_depth.items():
@@ -281,5 +286,11 @@ class Demo:
 
 
 if __name__ == '__main__':
-    demo = Demo(default_case="random-edges", error_rate=0.08, scale=50, area_visualisation="polygon")
+    demo = Demo(
+        default_case="random-nodes",
+        error_rate=0.07,
+        detection_count=100,
+        scale=10,
+        area_visualisation="polygon",
+    )
     demo.loop()

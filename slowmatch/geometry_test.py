@@ -1,12 +1,12 @@
 import pytest
 
-from slowmatch.geometry import ccw, graham_scan, sort_counter_clockwise_around_source
+from slowmatch.geometry import is_left_turn, graham_scan
 
 
-def test_ccw():
-    assert ccw(1, 2, 3) == 0
-    assert ccw(0, 0 + 1j, -1 + 1j) > 0
-    assert ccw(1, 2, 3 - 1j) < 0
+def test_is_left_turn():
+    assert is_left_turn(1, 2, 3) in [False, True]
+    assert not is_left_turn(0, 0 + 1j, -1 + 1j)
+    assert is_left_turn(1, 2, 3 - 1j)
 
 
 @pytest.mark.parametrize(
@@ -20,8 +20,3 @@ def test_ccw():
 )
 def test_graham_scan(points, expected):
     assert graham_scan(points) == expected
-
-
-def test_sort_counter_clockwise_around_source():
-    res = sort_counter_clockwise_around_source([-1 - 1j, 1 + 1j, -1 + 1j, 1 - 1j], source=0)
-    assert res == [-1 -1j, 1 - 1j, 1 + 1j, -1 + 1j]

@@ -1,5 +1,6 @@
 import dataclasses
-from typing import Dict, Generic, Optional, List, TypeVar, TYPE_CHECKING, Iterator, Tuple
+from typing import Dict, Generic, Optional, List, TypeVar, TYPE_CHECKING, \
+    Iterator, Tuple, Any
 import math
 
 import networkx as nx
@@ -104,17 +105,8 @@ class Graph:
             )
 
 
-@dataclasses.dataclass
-class MileMarker:
-    region: 'GraphFillRegion'
-    distance_from_region_center: float
-
-
 class LocationData(Generic[TLocation]):
-    def __init__(
-            self,
-            loc: TLocation
-    ):
+    def __init__(self, loc: TLocation) -> None:
         self.loc = loc
         self.observables_crossed: int = 0
         self.reached_from_source: Optional[LocationData] = None
@@ -130,7 +122,7 @@ class LocationData(Generic[TLocation]):
         self.search_predecessor: Optional[int] = None
 
     @property
-    def num_neighbors(self):
+    def num_neighbors(self) -> int:
         return len(self.neighbors)
 
     def has_same_owner_as(self, other: 'LocationData') -> bool:
@@ -190,30 +182,6 @@ class LocationData(Generic[TLocation]):
         self.region_that_arrived = None
         self.schedule_list = [None] * len(self.neighbors)
 
-    @property
-    def mile_markers(self):
-        if self.region_that_arrived is None:
-            return []
-
-        cur_region = self.reached_from_source.region_that_arrived
-        reached_region_that_arrived = False
-        mile_markers = []
-        tot_rad = 0
-        while cur_region.blossom_parent is not None:
-            assert cur_region.radius.slope == 0
-            r = cur_region.radius(0)
-            tot_rad += r
-            if cur_region is self.region_that_arrived:
-                reached_region_that_arrived = True
-            if tot_rad >= self.distance_from_source and reached_region_that_arrived:
-                d_from_src = self.distance_from_source - (tot_rad - r)
-                assert d_from_src <= cur_region.radius(0)
-                mile_markers.append(MileMarker(cur_region, d_from_src))
-            cur_region = cur_region.blossom_parent
-        d_from_src = self.distance_from_source - tot_rad
-        mile_markers.append(MileMarker(cur_region, d_from_src))
-        return mile_markers
-
     def top_region(self) -> Optional['GraphFillRegion']:
         if self.region_that_arrived is None:
             return None
@@ -235,18 +203,18 @@ class LocationData(Generic[TLocation]):
             raise ValueError(f"No neighbouring nodes have been reached from {source}")
         return min_d
 
-    def draw(self, screen: 'pygame.Surface', scale: float):
+    def draw(self, screen: 'pygame.Surface', scale: float) -> None:
         import pygame
         pygame.draw.circle(surface=screen, color=(255, 0, 255),
                            center=((self.loc*scale).real, (self.loc*scale).imag),
                            radius=5)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, type(self)):
             return self.loc == other.loc
         return False
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.loc)
 
 
