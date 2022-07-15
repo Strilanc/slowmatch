@@ -133,9 +133,9 @@ class GraphFlooder(Generic[TLocation]):
             schedule_list_index_2=schedule_list_index_2
         )
         self._next_event_id += 1
-        location_data_1.schedule_list[schedule_list_index_1] = tentative_event
+        location_data_1.neighbor_schedule_list[schedule_list_index_1] = tentative_event
         if location_data_2 is not None:
-            location_data_2.schedule_list[schedule_list_index_2] = tentative_event
+            location_data_2.neighbor_schedule_list[schedule_list_index_2] = tentative_event
         heapq.heappush(self._sorted_schedule, tentative_event)
         assert time >= self.time
 
@@ -169,7 +169,7 @@ class GraphFlooder(Generic[TLocation]):
 
         rad1 = location_data.local_radius()
         for i in range(location_data.num_neighbors):
-            distance = location_data.distances[i]
+            distance = location_data.neighbor_distances[i]
             neighbor_location_data = location_data.neighbors[i]
             if neighbor_location_data is None:
                 dis_to_boundary = distance - rad1
@@ -206,10 +206,10 @@ class GraphFlooder(Generic[TLocation]):
 
         assert location_data.reached_from_source is None
         if from_location_data is not None:
-            edge_obs = from_location_data.observables[neighbor_index]
+            edge_obs = from_location_data.neighbor_observables[neighbor_index]
             location_data.observables_crossed = from_location_data.observables_crossed ^ edge_obs
             location_data.reached_from_source = from_location_data.reached_from_source
-            edge_dist = from_location_data.distances[neighbor_index]
+            edge_dist = from_location_data.neighbor_distances[neighbor_index]
             location_data.distance_from_source = from_location_data.distance_from_source + edge_dist
         else:
             location_data.reached_from_source = location_data
@@ -262,9 +262,9 @@ class GraphFlooder(Generic[TLocation]):
         # Two regions colliding.
         region2 = loc_data_2.top_region()
         coll_obs_mask = (loc_data_1.observables_crossed ^ loc_data_2.observables_crossed
-                         ^ loc_data_1.observables[event.schedule_list_index_1])
+                         ^ loc_data_1.neighbor_observables[event.schedule_list_index_1])
         coll_dist = (loc_data_1.distance_from_source + loc_data_2.distance_from_source
-                     + loc_data_1.distances[event.schedule_list_index_1])
+                     + loc_data_1.neighbor_distances[event.schedule_list_index_1])
         return RegionHitRegionEvent(region1=region1, region2=region2, time=self.time,
                                     edge=CompressedEdge(
                                         loc_from=loc_data_1.reached_from_source,
@@ -278,8 +278,8 @@ class GraphFlooder(Generic[TLocation]):
         loc_data = event.location_data_1
         neighbour_index = event.schedule_list_index_1
         region = loc_data.top_region()
-        obs_crossed_on_path = loc_data.observables_crossed ^ loc_data.observables[neighbour_index]
-        distance_along_path = loc_data.distance_from_source + loc_data.distances[neighbour_index]
+        obs_crossed_on_path = loc_data.observables_crossed ^ loc_data.neighbor_observables[neighbour_index]
+        distance_along_path = loc_data.distance_from_source + loc_data.neighbor_distances[neighbour_index]
         neighbour_loc = loc_data.neighbors_with_boundary[neighbour_index]
         return RegionHitBoundaryEvent(
             time=self.time,

@@ -24,8 +24,8 @@ def _path_from_predecessors(node: 'DetectorNode') -> List['CompressedEdge']:
             CompressedEdge(
                 loc_from=node,
                 loc_to=next_node,
-                obs_mask = node.observables[node.search_predecessor],
-                distance = node.distances[node.search_predecessor]
+                obs_mask = node.neighbor_observables[node.search_predecessor],
+                distance = node.neighbor_distances[node.search_predecessor]
             )
         )
         node = next_node
@@ -43,9 +43,9 @@ def _min_edge_to_boundary(node: 'DetectorNode') -> Tuple[int, int]:
     min_bound_obs = None
     for i in range(len(node.neighbors)):
         if node.neighbors_with_boundary[i] is None:
-            if node.distances[i] < min_bound_distance:
-                min_bound_distance = node.distances[i]
-                min_bound_obs = node.observables[i]
+            if node.neighbor_distances[i] < min_bound_distance:
+                min_bound_distance = node.neighbor_distances[i]
+                min_bound_obs = node.neighbor_observables[i]
     return min_bound_distance, min_bound_obs
 
 
@@ -133,7 +133,7 @@ class CompressedEdge:
                 break
             for i in range(len(current_node.neighbors)):
                 v = current_node.neighbors_with_boundary[i]
-                new_distance = distance + current_node.distances[i]
+                new_distance = distance + current_node.neighbor_distances[i]
                 if v is not None and v.distance_from_search_source is None:
                     explored.append(v)
                 if v is None:

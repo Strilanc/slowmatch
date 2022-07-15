@@ -5,7 +5,7 @@ import math
 
 import networkx as nx
 
-from slowmatch.events import TentativeEvent
+from slowmatch.events import TentativeEvent, TentativeNeighborInteractionEvent
 from slowmatch.varying import Varying
 
 if TYPE_CHECKING:
@@ -32,16 +32,16 @@ class Graph:
 
         udata.neighbors.append(vdata)
         udata.neighbors_with_boundary.append(vdata)
-        udata.distances.append(weight)
-        udata.observables.append(observables)
-        udata.schedule_list.append(None)
+        udata.neighbor_distances.append(weight)
+        udata.neighbor_observables.append(observables)
+        udata.neighbor_schedule_list.append(None)
         udata.neighbor_index.append(len(vdata.neighbors))
 
         vdata.neighbors.append(udata)
         vdata.neighbors_with_boundary.append(udata)
-        vdata.distances.append(weight)
-        vdata.observables.append(observables)
-        vdata.schedule_list.append(None)
+        vdata.neighbor_distances.append(weight)
+        vdata.neighbor_observables.append(observables)
+        vdata.neighbor_schedule_list.append(None)
         vdata.neighbor_index.append(len(udata.neighbors) - 1)
 
         num_obs_bits = len(bin(observables)[:1:-1])
@@ -62,9 +62,9 @@ class Graph:
         udata = self.nodes[u]
         udata.neighbors.append(None)
         udata.neighbors_with_boundary.append(vdata)
-        udata.distances.append(weight)
-        udata.observables.append(observables)
-        udata.schedule_list.append(None)
+        udata.neighbor_distances.append(weight)
+        udata.neighbor_observables.append(observables)
+        udata.neighbor_schedule_list.append(None)
         vind = len(vdata.neighbors) if vdata is not None else None
         udata.neighbor_index.append(vind)
 
@@ -73,9 +73,9 @@ class Graph:
             vdata.neighbors.append(udata)
             vdata.neighbors_with_boundary.append(udata)
             vdata.neighbor_index.append(len(udata.neighbors) - 1)
-            vdata.distances.append(weight)
-            vdata.observables.append(observables)
-            vdata.schedule_list.append(None)
+            vdata.neighbor_distances.append(weight)
+            vdata.neighbor_observables.append(observables)
+            vdata.neighbor_schedule_list.append(None)
 
     def iter_all_edges(self) -> Iterator[Tuple['DetectorNode', int]]:
         seen_nodes = set()
@@ -119,13 +119,17 @@ class DetectorNode(Generic[TLocation]):
         self.reached_from_source: Optional[DetectorNode] = None
         self.distance_from_source: Optional[int] = None
         self.region_that_arrived: Optional['GraphFillRegion'] = None
+
         self.neighbors: List[Optional['DetectorNode']] = []
         self.neighbors_with_boundary: List['DetectorNode'] = []
-        self.distances: List[int] = []
-        self.observables: List[int] = []
-        self.schedule_list: List[Optional[TentativeEvent]] = []
+        self.neighbor_distances: List[int] = []
+        self.neighbor_observables: List[int] = []
+        self.neighbor_schedule_list: List[Optional[TentativeNeighborInteractionEvent]] = []
         self.neighbor_index: List[Optional[int]] = []
+
+        # Temporary state used during dijkstra search.
         self.distance_from_search_source: Optional[int] = None
+        # Temporary state used during dijkstra search.
         self.search_predecessor: Optional[int] = None
 
     @property
@@ -159,7 +163,7 @@ class DetectorNode(Generic[TLocation]):
         return radius
 
     def invalidate_involved_schedule_items(self):
-        for e in self.schedule_list:
+        for e in self.neighbor_schedule_list:
             if e is not None:
                 e.invalidate()
 
@@ -187,7 +191,7 @@ class DetectorNode(Generic[TLocation]):
         self.reached_from_source = None
         self.distance_from_source = None
         self.region_that_arrived = None
-        self.schedule_list = [None] * len(self.neighbors)
+        self.neighbor_schedule_list = [None] * len(self.neighbors)
 
     def top_region(self) -> Optional['GraphFillRegion']:
         if self.region_that_arrived is None:
@@ -204,7 +208,7 @@ class DetectorNode(Generic[TLocation]):
         for i in range(len(self.neighbors)):
             v = self.neighbors_with_boundary[i]
             if v.reached_from_source is source:
-                d = v.distance_from_source + self.distances[i]
+                d = v.distance_from_source + self.neighbor_distances[i]
                 min_d = min(d, min_d)
         if min_d == math.inf:
             raise ValueError(f"No neighbouring nodes have been reached from {source}")

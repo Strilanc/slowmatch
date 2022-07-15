@@ -78,11 +78,11 @@ class TentativeNeighborInteractionEvent(TentativeEvent):
 
     def invalidate(self):
         self.is_invalidated = True
-        assert self.location_data_1.schedule_list[self.schedule_list_index_1] is self
-        self.location_data_1.schedule_list[self.schedule_list_index_1] = None
+        assert self.location_data_1.neighbor_schedule_list[self.schedule_list_index_1] is self
+        self.location_data_1.neighbor_schedule_list[self.schedule_list_index_1] = None
         if self.schedule_list_index_2 is not None:
-            assert self.location_data_2.schedule_list[self.schedule_list_index_2] is self
-            self.location_data_2.schedule_list[self.schedule_list_index_2] = None
+            assert self.location_data_2.neighbor_schedule_list[self.schedule_list_index_2] is self
+            self.location_data_2.neighbor_schedule_list[self.schedule_list_index_2] = None
 
     def __repr__(self):
         return f"TentativeNeighborInteraction({self.time},{self.event_id}," \
