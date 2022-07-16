@@ -211,7 +211,9 @@ class GraphFillRegion(Generic[TLocation]):
 
         for node in self.iter_total_area():
             for i in range(len(node.neighbors)):
-                v = node.neighbors_with_boundary[i]
+                v = node.neighbors[i]
+                if v is None:
+                    continue
                 if v.is_owned_by(self):
                     targ = v.loc
                 else:

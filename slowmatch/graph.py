@@ -31,14 +31,12 @@ class Graph:
         vdata = self.nodes[v]
 
         udata.neighbors.append(vdata)
-        udata.neighbors_with_boundary.append(vdata)
         udata.neighbor_distances.append(weight)
         udata.neighbor_observables.append(observables)
         udata.neighbor_schedule_list.append(None)
         udata.neighbor_index.append(len(vdata.neighbors))
 
         vdata.neighbors.append(udata)
-        vdata.neighbors_with_boundary.append(udata)
         vdata.neighbor_distances.append(weight)
         vdata.neighbor_observables.append(observables)
         vdata.neighbor_schedule_list.append(None)
@@ -48,34 +46,16 @@ class Graph:
         if num_obs_bits > self.num_observables:
             self.num_observables = num_obs_bits
 
-    def add_boundary_edge(self, u: TLocation, weight: int, observables: int,
-                          boundary_node: Optional[TLocation] = None):
+    def add_boundary_edge(self, u: TLocation, weight: int, observables: int):
         if u not in self.nodes:
             self.nodes[u] = DetectorNode(loc=u)
-        if boundary_node is not None:
-            if boundary_node not in self.nodes:
-                self.nodes[boundary_node] = DetectorNode(loc=boundary_node)
-            vdata = self.nodes[boundary_node]
-        else:
-            vdata = None
 
         udata = self.nodes[u]
         udata.neighbors.append(None)
-        udata.neighbors_with_boundary.append(vdata)
         udata.neighbor_distances.append(weight)
         udata.neighbor_observables.append(observables)
         udata.neighbor_schedule_list.append(None)
-        vind = len(vdata.neighbors) if vdata is not None else None
-        udata.neighbor_index.append(vind)
-
-        # For the demo, it can be useful to have boundary nodes
-        if vdata is not None:
-            vdata.neighbors.append(udata)
-            vdata.neighbors_with_boundary.append(udata)
-            vdata.neighbor_index.append(len(udata.neighbors) - 1)
-            vdata.neighbor_distances.append(weight)
-            vdata.neighbor_observables.append(observables)
-            vdata.neighbor_schedule_list.append(None)
+        udata.neighbor_index.append(None)
 
     def iter_all_edges(self) -> Iterator[Tuple['DetectorNode', int]]:
         seen_nodes = set()
@@ -84,16 +64,17 @@ class Graph:
             if node.loc not in seen_nodes:
                 seen_edges.add(node.loc)
                 for i in range(len(node.neighbors)):
-                    loc2 = node.neighbors_with_boundary[i].loc
-                    if (node.loc, loc2) not in seen_edges:
-                        seen_edges.add((node.loc, loc2))
-                        seen_edges.add((loc2, node.loc))
-                        yield node, i
+                    if node.neighbors[i] is not None:
+                        loc2 = node.neighbors[i].loc
+                        if (node.loc, loc2) not in seen_edges:
+                            seen_edges.add((node.loc, loc2))
+                            seen_edges.add((loc2, node.loc))
+                            yield node, i
 
     def draw(self, screen: 'pygame.Screen', scale: float):
         import pygame
         for node, i in self.iter_all_edges():
-            v = node.neighbors_with_boundary[i]
+            v = node.neighbors[i]
             pygame.draw.line(
                 screen,
                 (150, 150, 150),
@@ -121,7 +102,6 @@ class DetectorNode(Generic[TLocation]):
         self.region_that_arrived: Optional['GraphFillRegion'] = None
 
         self.neighbors: List[Optional['DetectorNode']] = []
-        self.neighbors_with_boundary: List['DetectorNode'] = []
         self.neighbor_distances: List[int] = []
         self.neighbor_observables: List[int] = []
         self.neighbor_schedule_list: List[Optional[TentativeNeighborInteractionEvent]] = []
@@ -206,10 +186,11 @@ class DetectorNode(Generic[TLocation]):
     def distance_from_source_almost_reached_from(self, source: 'DetectorNode') -> int:
         min_d = math.inf
         for i in range(len(self.neighbors)):
-            v = self.neighbors_with_boundary[i]
-            if v.reached_from_source is source:
-                d = v.distance_from_source + self.neighbor_distances[i]
-                min_d = min(d, min_d)
+            v = self.neighbors[i]
+            if v is not None:
+                if v.reached_from_source is source:
+                    d = v.distance_from_source + self.neighbor_distances[i]
+                    min_d = min(d, min_d)
         if min_d == math.inf:
             raise ValueError(f"No neighbouring nodes have been reached from {source}")
         return min_d
@@ -248,13 +229,11 @@ def graph_from_networkx(graph: nx.Graph) -> Graph:
                 u=u,
                 weight=w,
                 observables=obs,
-                boundary_node=v
             )
         elif ub and not vb:
             new_graph.add_boundary_edge(
                 u=v,
                 weight=w,
                 observables=obs,
-                boundary_node=u
             )
     return new_graph

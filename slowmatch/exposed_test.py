@@ -60,9 +60,9 @@ def test_embedded_min_weight_match():
     result = embedded_min_weight_match(graph)
     m1, m2 = result.match_edges
     assert m1.loc_from.loc == "b"
-    assert m1.loc_to is "LEFT"
+    assert m1.loc_to is None
     assert m2.loc_from.loc == "e"
-    assert m2.loc_to is "RIGHT"
+    assert m2.loc_to is None
 
 
 def rep_neighbors(pos: complex) -> List[Tuple[int, int, complex]]:
@@ -130,7 +130,7 @@ def complex_grid_neighbors(pos: complex) -> List[Tuple[int, int, complex]]:
     ]
 
 
-def complex_grid_boundary(pos: complex) -> bool:
+def complex_grid_is_on_boundary(pos: complex) -> bool:
     return not 0 < pos.real < WIDTH / SCALE or not 0 < pos.imag < HEIGHT / SCALE
 
 
@@ -138,7 +138,7 @@ def plausible_case(width: int, height: int, p: float = ERROR_RATE):
     kept = set()
 
     def flip(x):
-        if complex_grid_boundary(x):
+        if complex_grid_is_on_boundary(x):
             return
         if x in kept:
             kept.remove(x)
@@ -162,13 +162,13 @@ def test_complex_grid():
     for i in range(20):
         locs = plausible_case(WIDTH, HEIGHT)
         graph = graph_from_neighbors_and_boundary(1 + 1j, complex_grid_neighbors,
-                                                  complex_grid_boundary)
+                                                  complex_grid_is_on_boundary)
         matching = Matching(model=graph)
         res = matching.decode_from_event_locations(locs)
         match_locs = set()
         for e in res.match_edges:
             match_locs.add(e.loc_from.loc)
-            if not complex_grid_boundary(e.loc_to.loc):
+            if e.loc_to is not None and not complex_grid_is_on_boundary(e.loc_to.loc):
                 match_locs.add(e.loc_to.loc)
         assert match_locs == set(locs)
 

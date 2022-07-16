@@ -22,7 +22,7 @@ def graph_from_neighbors_and_boundary(seed: complex, neighbors_func: Callable[[A
         seen.add(u)
         for w, obs, neighbor in neighbors_func(u):
             if is_boundary_func(neighbor):
-                g.add_boundary_edge(u, weight=w, observables=obs, boundary_node=neighbor)
+                g.add_boundary_edge(u, weight=w, observables=obs)
             elif (u, neighbor) not in edges:
                 g.add_edge(u, neighbor, weight=w, observables=obs)
                 edges.add((u, neighbor))

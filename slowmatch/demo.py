@@ -116,7 +116,7 @@ class Demo:
         for node in self.mwpm.fill_system.graph.nodes.values():
             yield node, None, node.loc
         for node, i in self.mwpm.fill_system.graph.iter_all_edges():
-            v = node.neighbors_with_boundary[i]
+            v = node.neighbors[i]
             vec = v.loc - node.loc
             num_points = int(self.num_points_per_unit_distance * abs(vec))
             step = vec / (num_points + 1)
@@ -151,7 +151,7 @@ class Demo:
 
         for node in region.iter_total_area():
             for i in range(len(node.neighbors)):
-                v = node.neighbors_with_boundary[i]
+                v = node.neighbors[i]
                 vec = v.loc - node.loc
                 if v.is_owned_by(region):
                     targ = v.loc

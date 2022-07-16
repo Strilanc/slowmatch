@@ -280,7 +280,7 @@ class GraphFlooder(Generic[TLocation]):
         region = loc_data.top_region()
         obs_crossed_on_path = loc_data.observables_crossed ^ loc_data.neighbor_observables[neighbour_index]
         distance_along_path = loc_data.distance_from_source + loc_data.neighbor_distances[neighbour_index]
-        neighbour_loc = loc_data.neighbors_with_boundary[neighbour_index]
+        neighbour_loc = loc_data.neighbors[neighbour_index]
         return RegionHitBoundaryEvent(
             time=self.time,
             region=region,
