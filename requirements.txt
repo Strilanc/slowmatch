@@ -1,6 +1,11 @@
-cirq==0.14.1
+cirq-core >= 0.14.1
+networkx >= 2.5
 pytest
 pygame
 networkx
 numpy
 pydot
+scipy
+stim
+typer
+pymatching
