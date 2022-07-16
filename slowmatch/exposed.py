@@ -1,17 +1,18 @@
 import dataclasses
-from typing import Tuple, List, Callable, Union, Set, Dict
-
-from slowmatch.graph_flooder import GraphFlooder
-from slowmatch.graph import Graph, graph_from_networkx
-from slowmatch.mwpm import Mwpm
-from slowmatch.compressed_edge import CompressedEdge
 import math
+from typing import List, Callable, Union, Set, Any
+
 import networkx as nx
 import numpy as np
 import stim
 
+from slowmatch.compressed_edge import CompressedEdge
+from slowmatch.graph import Graph, graph_from_networkx
+from slowmatch.graph_flooder import GraphFlooder
+from slowmatch.mwpm import Mwpm
 
-def graph_from_neighbors_and_boundary(seed: complex, neighbors: Callable, boundary: Callable) -> Graph:
+
+def graph_from_neighbors_and_boundary(seed: complex, neighbors_func: Callable[[Any], List[Any]], is_boundary_func: Callable[[Any], bool]) -> Graph:
     g = Graph()
     edges = set()
     seen = set()
@@ -19,8 +20,8 @@ def graph_from_neighbors_and_boundary(seed: complex, neighbors: Callable, bounda
     while len(q) > 0:
         u = q.pop()
         seen.add(u)
-        for w, obs, neighbor in neighbors(u):
-            if boundary(neighbor):
+        for w, obs, neighbor in neighbors_func(u):
+            if is_boundary_func(neighbor):
                 g.add_boundary_edge(u, weight=w, observables=obs, boundary_node=neighbor)
             elif (u, neighbor) not in edges:
                 g.add_edge(u, neighbor, weight=w, observables=obs)
