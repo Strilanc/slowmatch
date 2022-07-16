@@ -145,7 +145,7 @@ class CompressedEdge:
                             boundary_predecessor = current_node
                 elif v.distance_from_search_source is None or new_distance < v.distance_from_search_source:
                     v.distance_from_search_source = new_distance
-                    v.search_predecessor = current_node.neighbor_index[i]
+                    v.search_predecessor = current_node.neighbor_back_index[i]
                 else:
                     continue
                 heap_counter += 1

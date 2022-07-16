@@ -188,7 +188,7 @@ class GraphFlooder(Generic[TLocation]):
             rad3 = rad1 + rad2 - distance   # Collision time
             if rad3.slope <= 0:
                 continue
-            j = location_data.neighbor_index[i]
+            j = location_data.neighbor_back_index[i]
             self._schedule_tentative_neighbor_interaction_event(
                 location_data_1=location_data,
                 schedule_list_index_1=i,

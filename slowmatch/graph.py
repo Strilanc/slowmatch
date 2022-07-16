@@ -34,13 +34,13 @@ class Graph:
         udata.neighbor_distances.append(weight)
         udata.neighbor_observables.append(observables)
         udata.neighbor_schedule_list.append(None)
-        udata.neighbor_index.append(len(vdata.neighbors))
+        udata.neighbor_back_index.append(len(vdata.neighbors))
 
         vdata.neighbors.append(udata)
         vdata.neighbor_distances.append(weight)
         vdata.neighbor_observables.append(observables)
         vdata.neighbor_schedule_list.append(None)
-        vdata.neighbor_index.append(len(udata.neighbors) - 1)
+        vdata.neighbor_back_index.append(len(udata.neighbors) - 1)
 
         num_obs_bits = len(bin(observables)[:1:-1])
         if num_obs_bits > self.num_observables:
@@ -55,7 +55,7 @@ class Graph:
         udata.neighbor_distances.append(weight)
         udata.neighbor_observables.append(observables)
         udata.neighbor_schedule_list.append(None)
-        udata.neighbor_index.append(None)
+        udata.neighbor_back_index.append(None)
 
     def iter_all_edges(self) -> Iterator[Tuple['DetectorNode', int]]:
         seen_nodes = set()
@@ -101,11 +101,16 @@ class DetectorNode(Generic[TLocation]):
         self.distance_from_source: Optional[int] = None
         self.region_that_arrived: Optional['GraphFillRegion'] = None
 
+        # Reference to each neighbor node, for each neighbor.
         self.neighbors: List[Optional['DetectorNode']] = []
+        # Distance across edge to neighbor, for each neighbor.
         self.neighbor_distances: List[int] = []
+        # Observables crossed by following edge to neighbor, for each neighbor.
         self.neighbor_observables: List[int] = []
+        # Reference to tentative interaction event involving other node, or None, for each neighbor.
         self.neighbor_schedule_list: List[Optional[TentativeNeighborInteractionEvent]] = []
-        self.neighbor_index: List[Optional[int]] = []
+        # Index to self in the other node, for each neighbor.
+        self.neighbor_back_index: List[Optional[int]] = []
 
         # Temporary state used during dijkstra search.
         self.distance_from_search_source: Optional[int] = None
