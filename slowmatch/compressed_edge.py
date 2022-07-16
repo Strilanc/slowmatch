@@ -60,7 +60,9 @@ class CompressedEdge:
     """
     loc_from: 'DetectorNode'
     loc_to: Optional['DetectorNode']  # None means BOUNDARY.
+    # Observables crossed by following this path.
     obs_mask: int
+    # Distance of this path.
     distance: int
 
     def reversed(self) -> 'CompressedEdge':

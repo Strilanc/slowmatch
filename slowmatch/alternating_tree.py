@@ -10,38 +10,40 @@ if TYPE_CHECKING:
 
 @dataclasses.dataclass
 class AltTreeEdge:
+    """An edge between alt tree nodes."""
     node: 'AltTreeNode'
     edge: 'CompressedEdge'
 
 
 @dataclasses.dataclass
 class AltTreePruneResult:
+    """Data describing parts removed from an alternating tree."""
     orphans: List['AltTreeEdge']  # Subtrees disconnected from the main tree by pruning the path.
     pruned_path_regions: 'RegionPath'  # Inner-outer node pairs
 
 
 @dataclasses.dataclass
 class AltTreeNode:
-    inner_region: Optional['GraphFillRegion']
-    outer_region: 'GraphFillRegion'
-    parent: Optional['AltTreeEdge'] = None
-    children: List['AltTreeEdge'] = dataclasses.field(default_factory=lambda: [])
-    inner_outer_edge: Optional[CompressedEdge] = None
+    """A combined inner/outer node pair from an alternating tree."""
 
-    def all_matches_in_tree(
-            self, *, out: Optional[List[Tuple['GraphFillRegion', 'GraphFillRegion']]] = None
-            ) -> List[Tuple['GraphFillRegion', 'GraphFillRegion']]:
-        if out is None:
-            out = []
-        out.append((self.inner_region, self.outer_region))
-        for c in self.children:
-            c.node.all_matches_in_tree(out=out)
-        return out
+    # A shrinking region in the alternating tree.
+    # None if this node is the root.
+    inner_region: Optional['GraphFillRegion']
+    # A growing region in the alternating tree.
+    outer_region: 'GraphFillRegion'
+    # The parent of this region (its outer region is tightly linked to this node's inner region).
+    # None if this node is the root.
+    parent: Optional['AltTreeEdge'] = None
+    # The children of this region (the inner regions of the children are tightly linked to this node's outer region).
+    children: List['AltTreeEdge'] = dataclasses.field(default_factory=list)
+    # The edge from the inner_region to the outer_region.
+    inner_outer_edge: Optional[CompressedEdge] = None
 
     def shatter_into_matches(
             self, *, out: Optional[List[Tuple['GraphFillRegion', 'GraphFillRegion']]] = None,
             recursion_depth: int = 0
             ) -> List['GraphFillRegion']:
+        """Turns each node into a match, disassembling the tree in the process."""
         if out is None:
             out = []
         if self.inner_region is not None:
@@ -56,7 +58,7 @@ class AltTreeNode:
         self.children = []
         return out
 
-    def as_tuple(self) -> Tuple[
+    def _as_tuple_for_equality(self) -> Tuple[
         Tuple[
             Tuple[Optional[int], Optional[int]],
             Tuple[Optional[int], Optional[int]],
@@ -68,19 +70,20 @@ class AltTreeNode:
         else:
             this_node = ((self.inner_region.id, self.inner_outer_edge.loc_from.loc),
                          (self.outer_region.id, self.inner_outer_edge.loc_to.loc))
-        return this_node, tuple(c.node.as_tuple() for c in self.children)
+        return this_node, tuple(c.node._as_tuple_for_equality() for c in self.children)
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, type(self)):
             return NotImplemented
         if self.inner_region != other.inner_region or self.outer_region != other.outer_region:
             return False
-        return self.find_root().as_tuple() == other.find_root().as_tuple()
+        return self.find_root()._as_tuple_for_equality() == other.find_root()._as_tuple_for_equality()
 
     def __ne__(self, other: Any) -> bool:
         return not self == other
 
-    def outer_ancestry(self, *, stop_before: Optional['AltTreeNode'] = None) -> List['AltTreeNode']:
+    def ancestors(self, *, stop_before: Optional['AltTreeNode'] = None) -> List['AltTreeNode']:
+        """Lists the node and its ancestors, in child-first order."""
         if self is stop_before:
             return []
         result = [self]
@@ -92,7 +95,9 @@ class AltTreeNode:
         return result
 
     def become_root(self) -> None:
+        """Performs a tree rotation turning this node into the root of the tree."""
         if self.inner_region is None:
+            # Already the root.
             assert self.parent is None
             return
         assert self.parent is not None
@@ -130,8 +135,8 @@ class AltTreeNode:
         return current_node
 
     def most_recent_common_ancestor(self, other: 'AltTreeNode') -> 'AltTreeNode':
-        seen = set(id(e) for e in self.outer_ancestry())
-        for ancestor in other.outer_ancestry():
+        seen = set(id(e) for e in self.ancestors())
+        for ancestor in other.ancestors():
             if id(ancestor) in seen:
                 return ancestor
         raise ValueError(f'No common ancestor between ({self.inner_region},{self.outer_region}) '
@@ -194,7 +199,7 @@ class AltTreeNode:
         """
         orphans = []
         removed_regions = []
-        for node in self.outer_ancestry(stop_before=prune_parent):
+        for node in self.ancestors(stop_before=prune_parent):
             for child in node.children:
                 orphans.append(child)
                 child.node.parent = None

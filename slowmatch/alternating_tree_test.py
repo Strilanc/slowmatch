@@ -188,17 +188,17 @@ def test_alt_tree_outer_ancestry():
         outer_id=1,
         root=True,
     )
-    assert tree.outer_ancestry() == [tree]
-    assert tree.outer_ancestry(stop_before=tree) == []
+    assert tree.ancestors() == [tree]
+    assert tree.ancestors(stop_before=tree) == []
     c0 = tree.children[0].node
-    assert c0.outer_ancestry() == [c0, tree]
-    assert c0.outer_ancestry(stop_before=tree) == [c0]
-    assert c0.outer_ancestry(stop_before=c0) == []
+    assert c0.ancestors() == [c0, tree]
+    assert c0.ancestors(stop_before=tree) == [c0]
+    assert c0.ancestors(stop_before=c0) == []
     c00 = c0.children[0].node
-    assert c00.outer_ancestry() == [c00, c0, tree]
-    assert c00.outer_ancestry(stop_before=tree) == [c00, c0]
-    assert c00.outer_ancestry(stop_before=c0) == [c00]
-    assert c00.outer_ancestry(stop_before=c00) == []
+    assert c00.ancestors() == [c00, c0, tree]
+    assert c00.ancestors(stop_before=tree) == [c00, c0]
+    assert c00.ancestors(stop_before=c0) == [c00]
+    assert c00.ancestors(stop_before=c00) == []
 
 
 def gen_blossom_edge_path(region_ids: List[int]) -> RegionPath:

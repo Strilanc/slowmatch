@@ -133,7 +133,7 @@ def test_match_then_blossom_then_match():
 
     # 2 meets 0, forming a blossom.
     state.process_event(rhr(0, 2, 0, 2))
-    assert r(4).alt_tree_node.as_tuple() == t(outer_id=4, root=True).node.as_tuple()
+    assert r(4).alt_tree_node._as_tuple_for_equality() == t(outer_id=4, root=True).node._as_tuple_for_equality()
     assert r(3).alt_tree_node == t(outer_id=3, root=True).node
 
     assert fill.recorded_commands == [

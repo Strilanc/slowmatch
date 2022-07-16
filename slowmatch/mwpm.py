@@ -261,7 +261,7 @@ class Mwpm:
                     total_weight += m.match.edge.distance
         return match_list, total_weight, obs_mask
 
-    def shatter_and_match(self, max_depth: int = 1):
+    def shatter_and_match(self, max_depth: int = 1) -> None:
         """
         Shatter into matches, even if the algorithm hasn't terminated, for use in the demo. When this
         is used before the algorithm terminates, the final matching will not be minimum weight.

@@ -183,7 +183,7 @@ class DetectorNode(Generic[TLocation]):
             return None
         return self.region_that_arrived.top_region()
 
-    def in_active_region(self):
+    def in_active_region(self) -> bool:
         if self.region_that_arrived is not None:
             return self.region_that_arrived.blossom_parent is None
         return False
