@@ -59,7 +59,10 @@ def test_embedded_min_weight_match():
         graph = networkx.nx_pydot.from_pydot(g[0])
     result = embedded_min_weight_match(graph)
     m1, m2 = result.match_edges
-    assert ((m1.loc_from.loc, m1.loc_to.loc), (m2.loc_from.loc, m2.loc_to.loc)) == (("b", "LEFT"), ("e", "RIGHT"))
+    assert m1.loc_from.loc == "b"
+    assert m1.loc_to is "LEFT"
+    assert m2.loc_from.loc == "e"
+    assert m2.loc_to is "RIGHT"
 
 
 def rep_neighbors(pos: complex) -> List[Tuple[int, int, complex]]:
