@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 @dataclasses.dataclass
 class AltTreeEdge:
     """An edge between alt tree nodes."""
-    node: 'AltTreeNode'
+    node: 'AltTreeNode'  # Destination node.
     edge: 'CompressedEdge'
 
 

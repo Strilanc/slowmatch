@@ -23,14 +23,15 @@ def graham_scan(points: Iterable[complex]) -> List[complex]:
     points = set(points)
     if len(points) <= 2:
         return list(points)
-    center = sum(points) / len(points)
-    points = sorted(points, key=lambda x: cmath.phase(x - center))
+    point_on_hull = min(points, key=lambda e: (e.real, e.imag))
+    points = sorted(points - {point_on_hull}, key=lambda x: cmath.phase(x - point_on_hull))
 
     stack = []
     for p in points:
         while len(stack) > 1 and is_left_turn(stack[-2], stack[-1], p):
             stack.pop()
         stack.append(p)
+    stack.append(point_on_hull)
     return stack
 
 
