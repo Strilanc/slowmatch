@@ -2,7 +2,7 @@
 
 Slowmatch is an example python implementation of minimum weight embedded matching.
 
-An *embedded matching* is a set of edges where marked nodes are adjacent to an odd number of edges and unmarked nodes are adjacent to an event number of edges.
+An *embedded matching* is a set of edges where marked nodes are adjacent to an odd number of edges and unmarked nodes are adjacent to an even number of edges.
 There may also be boundary nodes, which can be adjacent to an even or odd number of marked edges.
 The minimum weight embedded matching problem is very similar to the minimum weight perfect matching problem.
 The algorithms for solving them are essentially the same.
